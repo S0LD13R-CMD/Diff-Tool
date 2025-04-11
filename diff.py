@@ -8,7 +8,7 @@ There are also some optional flags below.
 
 from argparse import ArgumentParser
 from differ import diff
-from visualization import visualize_unified, visualize_sxs
+from visualization import visualize_unified, visualize_unified_html, visualize_unified_spreadsheet_html
 
 def _setup_arg_parser():
     """Sets up the command line argument parser."""
@@ -17,16 +17,25 @@ def _setup_arg_parser():
     parser.add_argument("file1", help="The original file to diff.")
     parser.add_argument("file2", help="The updated file to diff.")
 
-    parser.add_argument("--unified_view",
-                        default=False,
-                        action='store_true',
-                        help="If set, the diff is shown in one view. "
-                        "Otherwise they are shown in a split view.")
     parser.add_argument("--show_line_numbers",
+                        default=True,
+                        action='store_true',
+                        help="If set, line numbers are shown.")
+    parser.add_argument("--hide_line_numbers",
                         default=False,
                         action='store_true',
-                        help="If set, line numbers are not shown. "
-                        "This mostly useful for the split view.")
+                        help="If set, hide line numbers.")
+    parser.add_argument("--html_output",
+                        default=False,
+                        action='store_true',
+                        help="If set, generates an HTML file with the diff results.")
+    parser.add_argument("--output_file",
+                        default="diff_output.html",
+                        help="The name of the output HTML file (if --html_output is used).")
+    parser.add_argument("--spreadsheet",
+                        default=False,
+                        action='store_true',
+                        help="If set, generates a spreadsheet-like HTML view with each field in its own cell.")
 
     return parser
 
@@ -43,10 +52,19 @@ def main():
 
     diff_result = diff(lines1, lines2)
 
-    if args.unified_view:
-        visualize_unified(diff_result, args.show_line_numbers)
+    # Override show_line_numbers if hide_line_numbers is specified
+    show_line_numbers = args.show_line_numbers and not args.hide_line_numbers
+
+    if args.html_output:
+        if args.spreadsheet:
+            # Unified spreadsheet-like HTML view
+            visualize_unified_spreadsheet_html(diff_result, show_line_numbers, args.output_file)
+        else:
+            # Unified HTML view
+            visualize_unified_html(diff_result, show_line_numbers, args.output_file)
     else:
-        visualize_sxs(diff_result, args.show_line_numbers)
+        # Console unified view
+        visualize_unified(diff_result, show_line_numbers)
 
 if __name__ == '__main__':
     main()
