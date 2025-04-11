@@ -1,32 +1,7 @@
 # Diffing Tool
 
 Diffing tools show you what changed between two versions of a file.
-For example, given these two input files:
-
-![Two files with different contents](img/files.png)
-
-The diff between them would show you what changed:
-
-![Diffing result](img/diff.png)
-
-You probably know this from code review tools, e.g. the one from GitHub.
-I decided to implement my own diffing tool for fun. :)
-There's also a [blog post](https://florian.github.io/diffing) describing how this works.
-
-## Usage
-
-To show the diff between `file1` and `file2`:
-
-```sh
-$ python3 diff.py file1.txt file2.txt
-```
-
-There are several optional flags:
-
-| Flag                  | Description                              | Default                   |
-| :---------------------|:-----------------------------------------|:-------------------------|
-| `--unified_view`      | Whether to show a unfiied or split view. | The split view is shown. |
-| `--show_line_numbers` | If set, line numbers are shown.          | Line numbers are hidden. |
+For example, given these two input files.
 
 ## Algorithm
 
