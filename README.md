@@ -23,5 +23,3 @@ There's some things left that could be improved:
 - Char-based diffing as opposed to line-based diffing. The algorithm would stay
   exactly the same. The only thing that would need to be updated is the visualization
 - Faster line-based diffing. One could first hash all lines to make comparisons faster
-- Adding unit tests for stuff. I was lazy and just used [leetcode](https://leetcode.com/problems/longest-common-subsequence/)
- to test that the longest common subsequence algorithm is correct
