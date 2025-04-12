@@ -1,2 +1,0 @@
-ID,Name,Price
-1001,Laptop X3,1249.99
