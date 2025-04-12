@@ -132,8 +132,15 @@ def calculate_row_similarity(row1, row2):
     """Calculate similarity score between two rows (higher is more similar)."""
     if not row1 or not row2:
         return 0  # Empty rows have no similarity
+    
+    # If row lengths are very different, they're less likely to be the same row
+    len_diff_factor = min(len(row1), len(row2)) / max(len(row1), len(row2)) if max(len(row1), len(row2)) > 0 else 0
+    
+    # Check if contents are exactly the same
+    if row1 == row2:
+        return 1.0  # Exact match should always be preferred
         
-    # Calculate how many fields match
+    # Calculate how many fields match exactly
     field_matches = sum(1 for f1, f2 in zip(row1, row2) if f1 == f2)
     
     # Take into account the row length - shorter rows match fewer fields
@@ -141,15 +148,37 @@ def calculate_row_similarity(row1, row2):
     
     if max_possible_matches == 0:
         return 0
+    
+    # Check if first field (ID) matches - give extra weight to ID match
+    id_match_bonus = 0.1 if len(row1) > 0 and len(row2) > 0 and row1[0] == row2[0] else 0
+    
+    # Calculate content fingerprint match (comparing number patterns in the data)
+    content_match = 0
+    if len(row1) >= 3 and len(row2) >= 3:
+        # Compare fingerprints of content after removing punctuation and whitespace
+        row1_str = ''.join(str(field) for field in row1[1:])  # Skip ID field
+        row2_str = ''.join(str(field) for field in row2[1:])  # Skip ID field
         
-    # Return percentage of matching fields (0-1)
-    return field_matches / max_possible_matches
+        # Calculate character-level similarity as a supplementary measure
+        max_str_len = max(len(row1_str), len(row2_str))
+        if max_str_len > 0:
+            # Count matching characters
+            char_matches = 0
+            for i in range(min(len(row1_str), len(row2_str))):
+                if row1_str[i] == row2_str[i]:
+                    char_matches += 1
+            content_match = char_matches / max_str_len * 0.2  # Weight of 0.2
+    
+    # Return percentage of matching fields (0-1) with bonuses for ID match and content similarity
+    base_similarity = field_matches / max_possible_matches
+    return base_similarity * 0.7 + id_match_bonus + content_match
 
 def find_best_row_matches(rows1, rows2, similarity_threshold=0.5):
     """Find best matches between rows based on field similarity."""
     matches = []
     used_indices2 = set()
     
+    # First phase: find high confidence matches
     for idx1, row1 in enumerate(rows1):
         # Skip completely empty rows
         if not row1 or all(cell.strip() == '' for cell in row1):
@@ -175,6 +204,34 @@ def find_best_row_matches(rows1, rows2, similarity_threshold=0.5):
         if best_match_idx is not None:
             matches.append((idx1, best_match_idx, best_match_score))
             used_indices2.add(best_match_idx)
+    
+    # Second phase: examine remaining unmatched rows and look for potential exact matches
+    # that may have been missed due to position differences
+    unmatched_indices1 = set(range(len(rows1))) - set(m[0] for m in matches)
+    unmatched_indices2 = set(range(len(rows2))) - used_indices2
+    
+    # Look for potential exact or near-exact matches between remaining unmatched rows
+    for idx1 in sorted(unmatched_indices1):
+        row1 = rows1[idx1]
+        
+        # Skip completely empty rows
+        if not row1 or all(cell.strip() == '' for cell in row1):
+            continue
+            
+        for idx2 in sorted(unmatched_indices2):
+            row2 = rows2[idx2]
+            
+            # Skip completely empty rows    
+            if not row2 or all(cell.strip() == '' for cell in row2):
+                continue
+                
+            # Check for exact or near-exact matches with higher threshold
+            score = calculate_row_similarity(row1, row2)
+            if score > 0.8:  # Higher threshold for the second pass
+                matches.append((idx1, idx2, score))
+                used_indices2.add(idx2)
+                unmatched_indices2.remove(idx2)
+                break
             
     # Sort by score descending, to prioritize most confident matches
     matches.sort(key=lambda m: m[2], reverse=True)

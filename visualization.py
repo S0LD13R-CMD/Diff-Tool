@@ -541,13 +541,92 @@ def visualize_unified_html(diff, show_line_numbers, output_file="diff_output.htm
             font-style: italic;
         }
         
+        /* Style for truly empty cells - visible when (empty) text is hidden */
+        .truly-empty {
+            /* Keep the same background as regular cells, no special styling */
+        }
+        
         /* Force all borders to be #30363d */
         * {
             border-color: #30363d !important;
         }
+
+        /* Toggle button styling */
+        .toggle-container {
+            position: sticky;
+            top: 0;
+            padding: 10px 0;
+            background-color: #0d1117;
+            z-index: 100;
+            margin-bottom: 15px;
+            border-bottom: 1px solid #30363d;
+        }
+
+        /* First row sticky styling */
+        tr:first-child {
+            position: sticky;
+            top: 60px; /* Position below the toggle button */
+            background-color: #0d1117;
+            z-index: 50;
+        }
+        
+        /* Keep the background colors consistent in the sticky first row */
+        tr:first-child td {
+            background-color: #0d1117 !important;
+        }
+        
+        /* Ensure the status column background remains consistent in the sticky first row */
+        tr:first-child td.status-col {
+            background-color: #161b22 !important;
+        }
+
+        .toggle-button {
+            background-color: #238636;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            font-family: monospace;
+        }
+
+        .toggle-button:hover {
+            background-color: #2ea043;
+        }
     </style>
+    <script>
+        function toggleEmptyCells() {
+            const emptyCells = document.querySelectorAll('.empty-cell');
+            const button = document.getElementById('toggle-button');
+            
+            // Toggle visibility
+            for (const cell of emptyCells) {
+                if (cell.style.display === 'none') {
+                    cell.style.display = 'inline';
+                    button.textContent = 'Hide (empty) Labels';
+                    
+                    // No need to modify parent cell styling since we want consistent backgrounds
+                } else {
+                    cell.style.display = 'none';
+                    button.textContent = 'Show (empty) Labels';
+                    
+                    // No need to modify parent cell styling since we want consistent backgrounds
+                }
+            }
+        }
+        
+        // Initialize on page load
+        window.addEventListener('DOMContentLoaded', (event) => {
+            // Start with empty cells visible by default
+            document.getElementById('toggle-button').textContent = 'Hide (empty) Labels';
+        });
+    </script>
 </head>
 <body>
+    <div class="toggle-container">
+        <button id="toggle-button" class="toggle-button" onclick="toggleEmptyCells()">Hide (empty) Labels</button>
+    </div>
     <div class="title">CSV Diff Results (Unified View)</div>
     <div class="diff-container">
         <table>
@@ -984,13 +1063,92 @@ def visualize_unified_spreadsheet_html(diff, show_line_numbers, output_file="dif
                 font-style: italic;
             }
             
+            /* Style for truly empty cells - visible when (empty) text is hidden */
+            .truly-empty {
+                /* Keep the same background as regular cells, no special styling */
+            }
+            
             /* Force all borders to be #30363d */
             * {
                 border-color: #30363d !important;
             }
+
+            /* Toggle button styling */
+            .toggle-container {
+                position: sticky;
+                top: 0;
+                padding: 10px 0;
+                background-color: #0d1117;
+                z-index: 100;
+                margin-bottom: 15px;
+                border-bottom: 1px solid #30363d;
+            }
+
+            /* First row sticky styling */
+            tr:first-child {
+                position: sticky;
+                top: 60px; /* Position below the toggle button */
+                background-color: #0d1117;
+                z-index: 50;
+            }
+            
+            /* Keep the background colors consistent in the sticky first row */
+            tr:first-child td {
+                background-color: #0d1117 !important;
+            }
+            
+            /* Ensure the status column background remains consistent in the sticky first row */
+            tr:first-child td.status-col {
+                background-color: #161b22 !important;
+            }
+
+            .toggle-button {
+                background-color: #238636;
+                color: white;
+                border: none;
+                padding: 8px 16px;
+                border-radius: 6px;
+                cursor: pointer;
+                font-size: 14px;
+                font-family: monospace;
+            }
+
+            .toggle-button:hover {
+                background-color: #2ea043;
+            }
         </style>
+        <script>
+            function toggleEmptyCells() {
+                const emptyCells = document.querySelectorAll('.empty-cell');
+                const button = document.getElementById('toggle-button');
+                
+                // Toggle visibility
+                for (const cell of emptyCells) {
+                    if (cell.style.display === 'none') {
+                        cell.style.display = 'inline';
+                        button.textContent = 'Hide (empty) Labels';
+                        
+                        // No need to modify parent cell styling since we want consistent backgrounds
+                    } else {
+                        cell.style.display = 'none';
+                        button.textContent = 'Show (empty) Labels';
+                        
+                        // No need to modify parent cell styling since we want consistent backgrounds
+                    }
+                }
+            }
+            
+            // Initialize on page load
+            window.addEventListener('DOMContentLoaded', (event) => {
+                // Start with empty cells visible by default
+                document.getElementById('toggle-button').textContent = 'Hide (empty) Labels';
+            });
+        </script>
     </head>
     <body>
+        <div class="toggle-container">
+            <button id="toggle-button" class="toggle-button" onclick="toggleEmptyCells()">Hide (empty) Labels</button>
+        </div>
         <table>
             <tbody>
     """
@@ -1049,8 +1207,10 @@ def visualize_unified_spreadsheet_html(diff, show_line_numbers, output_file="dif
                 else:
                     # Unchanged fields in modified rows
                     value = field.get("value", "")
-                    display = f'<span class="empty-cell">(empty)</span>' if value == '' else value
-                    html_content += f'<td>{display}</td>\n'
+                    if value == '':
+                        html_content += f'<td><span class="empty-cell">(empty)</span></td>\n'
+                    else:
+                        html_content += f'<td>{value}</td>\n'
             
             # Add empty cells to fill up to max fields
             for _ in range(max_field_count - len(element['merged_fields'])):
@@ -1058,8 +1218,10 @@ def visualize_unified_spreadsheet_html(diff, show_line_numbers, output_file="dif
         else:
             # For additions, removals and unchanged rows
             for i, field in enumerate(element.get('fields', [])):
-                display = f'<span class="empty-cell">(empty)</span>' if field == '' else field
-                html_content += f'<td>{display}</td>\n'
+                if field == '':
+                    html_content += f'<td><span class="empty-cell">(empty)</span></td>\n'
+                else:
+                    html_content += f'<td>{field}</td>\n'
             
             # Add empty cells to fill up to max fields
             for _ in range(max_field_count - len(element.get('fields', []))):
