@@ -132,48 +132,46 @@ def calculate_row_similarity(row1, row2):
     """Calculate similarity score between two rows (higher is more similar)."""
     if not row1 or not row2:
         return 0  # Empty rows have no similarity
-    
-    # If row lengths are very different, they're less likely to be the same row
-    len_diff_factor = min(len(row1), len(row2)) / max(len(row1), len(row2)) if max(len(row1), len(row2)) > 0 else 0
-    
-    # Check if contents are exactly the same
-    if row1 == row2:
-        return 1.0  # Exact match should always be preferred
-        
-    # Calculate how many fields match exactly
-    field_matches = sum(1 for f1, f2 in zip(row1, row2) if f1 == f2)
-    
-    # Take into account the row length - shorter rows match fewer fields
-    max_possible_matches = min(len(row1), len(row2))
-    
-    if max_possible_matches == 0:
-        return 0
-    
-    # Check if first field (ID) matches - give extra weight to ID match
-    id_match_bonus = 0.1 if len(row1) > 0 and len(row2) > 0 and row1[0] == row2[0] else 0
-    
-    # Calculate content fingerprint match (comparing number patterns in the data)
-    content_match = 0
-    if len(row1) >= 3 and len(row2) >= 3:
-        # Compare fingerprints of content after removing punctuation and whitespace
-        row1_str = ''.join(str(field) for field in row1[1:])  # Skip ID field
-        row2_str = ''.join(str(field) for field in row2[1:])  # Skip ID field
-        
-        # Calculate character-level similarity as a supplementary measure
-        max_str_len = max(len(row1_str), len(row2_str))
-        if max_str_len > 0:
-            # Count matching characters
-            char_matches = 0
-            for i in range(min(len(row1_str), len(row2_str))):
-                if row1_str[i] == row2_str[i]:
-                    char_matches += 1
-            content_match = char_matches / max_str_len * 0.2  # Weight of 0.2
-    
-    # Return percentage of matching fields (0-1) with bonuses for ID match and content similarity
-    base_similarity = field_matches / max_possible_matches
-    return base_similarity * 0.7 + id_match_bonus + content_match
 
-def find_best_row_matches(rows1, rows2, similarity_threshold=0.5):
+    # 1. Exact Match
+    if row1 == row2:
+        return 1.0
+
+    # 2. ID Match (First Column)
+    if len(row1) > 0 and len(row2) > 0 and row1[0] == row2[0]:
+        # Give a very high score if IDs match, assuming ID is a strong identifier
+        return 0.95 
+
+    # 3. Near Match (Few Differences)
+    matching_fields = 0
+    different_fields_indices = []
+    max_len = max(len(row1), len(row2))
+    min_len = min(len(row1), len(row2))
+    
+    for i in range(min_len):
+        if row1[i] == row2[i]:
+            matching_fields += 1
+        else:
+            different_fields_indices.append(i)
+            
+    # Count fields present only in the longer row as differences
+    num_different_fields = len(different_fields_indices) + (max_len - min_len)
+
+    if num_different_fields == 1:
+        return 0.90
+    elif num_different_fields == 2:
+        return 0.85
+    elif num_different_fields == 3:
+        return 0.80
+        
+    # 4. Percentage Match (Scaled)
+    if max_len == 0:
+        return 0 # Avoid division by zero if both rows somehow end up empty
+        
+    match_percentage = matching_fields / max_len
+    return match_percentage * 0.7 # Scale down general percentage match
+
+def find_best_row_matches(rows1, rows2, similarity_threshold=0.3):
     """Find best matches between rows based on field similarity."""
     matches = []
     used_indices2 = set()
@@ -225,9 +223,9 @@ def find_best_row_matches(rows1, rows2, similarity_threshold=0.5):
             if not row2 or all(cell.strip() == '' for cell in row2):
                 continue
                 
-            # Check for exact or near-exact matches with higher threshold
+            # Check for near matches with a lower threshold
             score = calculate_row_similarity(row1, row2)
-            if score > 0.8:  # Higher threshold for the second pass
+            if score > 0.2:  # Much lower threshold for the second pass
                 matches.append((idx1, idx2, score))
                 used_indices2.add(idx2)
                 unmatched_indices2.remove(idx2)
@@ -261,12 +259,12 @@ def diff_csv(text1, text2):
     # Track processed indices from file2
     processed_idx2 = set()
     
-    # Build the diff result preserving original order
-    results = []
+    # Build the initial diff result preserving original order
+    initial_results = []
     
     # First add headers if they're identical
     if rows1 and rows2 and rows1[0] == rows2[0]:
-        results.append(Unchanged(text1[0]))
+        initial_results.append(Unchanged(text1[0]))
         processed_idx2.add(0)  # Mark header as processed
     
     # Process all rows from file1 in order
@@ -285,42 +283,105 @@ def diff_csv(text1, text2):
                 # Identical rows - check if they're in same position
                 if idx1 == idx2:
                     # Same position - truly unchanged
-                    results.append(Unchanged(text1[idx1]))
+                    initial_results.append(Unchanged(text1[idx1]))
                 else:
                     # Same content but different position
-                    # Only mark as moved if they're more than 10 lines apart
-                    if abs(idx1 - idx2) > 10:
+                    # Only mark as moved if they're more than 3 lines apart
+                    if abs(idx1 - idx2) > 3:
                         # Far enough to be considered moved
-                        # Create with original and new indices (add 1 because line numbers are 1-indexed)
                         results.append(Unchanged(text1[idx1], 
                                               _is_moved=True,
                                               _original_index=idx1 + 1, 
                                               _new_index=idx2 + 1))
                     else:
                         # Too close to be considered moved - treat as unchanged
-                        results.append(Unchanged(text1[idx1]))
+                        initial_results.append(Unchanged(text1[idx1]))
             else:
-                # Modified rows - identify field differences
-                diff_indices = identify_row_field_differences(row1, row2)
-                
-                # Store positions for cross-referencing
-                removal_pos = len(results)
-                addition_pos = removal_pos + 1
-                
-                # Add the pair with matched indices
-                results.append(Removal(text1[idx1], diff_indices, addition_pos))
-                results.append(Addition(text2[idx2], diff_indices, removal_pos))
+                # Initially mark as separate removal and addition
+                # Post-processing will merge these if they qualify as a modification
+                initial_results.append(Removal(text1[idx1])) 
+                initial_results.append(Addition(text2[idx2])) 
         else:
             # Row was removed in file2
-            results.append(Removal(text1[idx1]))
+            initial_results.append(Removal(text1[idx1]))
     
     # Now add any rows from file2 that weren't matched to file1
     for idx2, row2 in enumerate(rows2):
         if idx2 not in processed_idx2:
             # This is a new row in file2
-            results.append(Addition(text2[idx2]))
+            initial_results.append(Addition(text2[idx2]))
     
-    return results
+    # Final post-processing pass: look for consecutive removal/addition pairs that are highly similar
+    final_results = []
+    i = 0
+    while i < len(initial_results):
+        current_element = initial_results[i]
+        next_element = initial_results[i+1] if (i + 1 < len(initial_results)) else None
+        
+        # Check for Removal followed by Addition
+        if (isinstance(current_element, Removal) and 
+            isinstance(next_element, Addition)):
+            
+            removal = current_element
+            addition = next_element
+            is_modification = False
+            diff_indices = []
+            
+            try:
+                removal_row = next(csv.reader([removal.content]))
+                addition_row = next(csv.reader([addition.content]))
+                
+                # Calculate similarity based on field differences
+                total_fields = max(len(removal_row), len(addition_row))
+                if total_fields > 0: # Avoid division by zero for empty rows
+                    matching_fields = 0
+                    current_diff_indices = []
+                    max_len = max(len(removal_row), len(addition_row))
+                    min_len = min(len(removal_row), len(addition_row))
+
+                    for idx in range(min_len):
+                        if removal_row[idx] == addition_row[idx]:
+                            matching_fields += 1
+                        else:
+                            current_diff_indices.append(idx)
+                    
+                    # Fields only in the longer row are also differences
+                    num_different_fields = len(current_diff_indices) + (max_len - min_len)
+                    
+                    match_percentage = matching_fields / max_len
+                    
+                    # Modification Criteria: >=90% match OR <= 3 differing fields
+                    if match_percentage >= 0.9 or num_different_fields <= 3:
+                        is_modification = True
+                        diff_indices = current_diff_indices
+                        # Add indices for fields present only in longer row
+                        for idx in range(min_len, max_len):
+                            diff_indices.append(idx)
+                            
+            except (StopIteration, csv.Error):
+                # Handle CSV parsing errors
+                pass
+
+            # If it qualifies as a modification, add linked pair
+            if is_modification:
+                removal_pos = len(final_results)
+                addition_pos = removal_pos + 1
+                
+                # Add linked Removal and Addition
+                linked_removal = Removal(removal.content, diff_indices, _matched_idx=addition_pos)
+                linked_addition = Addition(addition.content, diff_indices, _matched_idx=removal_pos)
+                
+                final_results.append(linked_removal)
+                final_results.append(linked_addition)
+                
+                i += 2 # Skip both original elements
+                continue # Move to the next potential pair
+
+        # If not a modification pair, add the current element
+        final_results.append(current_element)
+        i += 1
+            
+    return final_results
 
 def mark_segment_changes(diff_result):
     """Marks which segments differ in matched line pairs.

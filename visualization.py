@@ -762,176 +762,135 @@ def visualize_unified_spreadsheet_html(diff, show_line_numbers, output_file="dif
     import csv
     from io import StringIO
     import os
-    
-    # Create a dictionary to store rows by their ID
-    rows_by_id = {}
-    
-    # First pass - collect all rows by ID and track their positions
-    for i, element in enumerate(diff):
-        if isinstance(element, (Removal, Addition, Unchanged)):
-            # Extract ID from the first column (assuming CSV format)
-            parts = element.content.split(',')
-            if len(parts) > 0:
-                # Generate a proper row identifier
-                # If first cell is empty, use a composite key with position to ensure uniqueness
-                row_id = parts[0] if parts[0].strip() else f"empty_cell_{i}"
-                if row_id not in rows_by_id:
-                    rows_by_id[row_id] = []
-                # Store the element, its index, and type
-                elem_type = 'removal' if isinstance(element, Removal) else 'addition' if isinstance(element, Addition) else 'unchanged'
-                rows_by_id[row_id].append({
-                    'element': element,
-                    'index': i,
-                    'type': elem_type
-                })
-    
-    # Extract CSV fields from each element for easier processing
+
+    processed_indices = set()
+    display_elements = []
     element_fields = {}
+    original_pos = 1
+    modified_pos = 1
+    temp_pos_data = {} # Dictionary to store temporary position data
+
+    # First pass: Parse fields and calculate positions
     for i, element in enumerate(diff):
-        if isinstance(element, (Removal, Addition, Unchanged)):
-            try:
-                with StringIO(element.content) as f:
-                    reader = csv.reader(f)
-                    fields = next(reader)
-                    element_fields[i] = fields
-            except (StopIteration, csv.Error):
-                # Handle empty lines or invalid CSV
-                element_fields[i] = element.content.split(',')
-    
-    # Determine how many columns we need by finding the max field count
+        current_original_pos = None
+        current_modified_pos = None
+
+        if isinstance(element, Removal) or isinstance(element, Unchanged):
+            current_original_pos = original_pos
+            original_pos += 1
+        if isinstance(element, Addition) or isinstance(element, Unchanged):
+            current_modified_pos = modified_pos
+            modified_pos += 1
+
+        # Parse fields
+        try:
+            with StringIO(element.content) as f:
+                reader = csv.reader(f)
+                fields = next(reader)
+                element_fields[i] = fields
+        except (StopIteration, csv.Error):
+            element_fields[i] = element.content.split(',') 
+
+        # Store position info in the dictionary
+        temp_pos_data[i] = {
+            'orig': current_original_pos,
+            'mod': current_modified_pos
+        }
+
+    # Determine max field count
     max_field_count = 0
     for fields in element_fields.values():
         max_field_count = max(max_field_count, len(fields))
-    
-    # Keep track of row positions in the original file
-    original_positions = {}
-    modified_positions = {}
-    
-    # First, build a mapping of row IDs to their positions in each file
-    orig_position = 1
-    mod_position = 1
-    
-    # Process the diff to extract all positions first
+
+    # Second pass: Build display elements, pairing modifications
     for i, element in enumerate(diff):
-        if isinstance(element, (Removal, Unchanged)):
-            parts = element.content.split(',')
-            if parts:
-                # Generate a proper row identifier
-                row_id = parts[0] if parts[0].strip() else f"empty_cell_{i}"
-                original_positions[row_id] = orig_position
-                orig_position += 1
-                
-                # If unchanged, also track in modified file
-                if isinstance(element, Unchanged):
-                    modified_positions[row_id] = mod_position
-                    mod_position += 1
-                
-        if isinstance(element, (Addition, Unchanged)):
-            parts = element.content.split(',')
-            if parts:
-                # Generate a proper row identifier
-                row_id = parts[0] if parts[0].strip() else f"empty_cell_{i}"
-                if row_id not in modified_positions:
-                    modified_positions[row_id] = mod_position
-                    mod_position += 1
-    
-    # Now build the display elements with corrected line numbers
-    display_elements = []
-    for row_id, elements in rows_by_id.items():
-        if len(elements) == 1:
-            # Simple case - added or removed or unchanged
-            element = elements[0]['element']
-            elem_type = elements[0]['type']
-            index = elements[0]['index']
-            
-            if show_line_numbers:
-                if elem_type == 'removal':
-                    line_num_orig = original_positions.get(row_id, index + 1)
-                    line_num_mod = ''
-                elif elem_type == 'addition':
-                    line_num_orig = ''
-                    line_num_mod = modified_positions.get(row_id, index + 1)
-                else:  # unchanged
-                    line_num_orig = original_positions.get(row_id, index + 1)
-                    line_num_mod = modified_positions.get(row_id, index + 1)
-            else:
-                line_num_orig = line_num_mod = ''
-            
-            display_elements.append({
-                'type': elem_type,
-                'line_num_orig': line_num_orig,
-                'line_num_mod': line_num_mod,
-                'fields': element_fields[index],
-                'id': row_id,
-                'original_index': index  # Store original index for sorting
-            })
-        elif len(elements) == 2:
-            # Modified row - need to show both versions
-            removal = None
-            addition = None
-            for e in elements:
-                if e['type'] == 'removal':
-                    removal = e
-                elif e['type'] == 'addition':
-                    addition = e
-            
-            if removal and addition:
-                if show_line_numbers:
-                    line_num_orig = original_positions.get(row_id, removal['index'] + 1)
-                    line_num_mod = modified_positions.get(row_id, addition['index'] + 1)
-                else:
-                    line_num_orig = line_num_mod = ''
-                
-                # Create merged fields to show both versions
-                removal_fields = element_fields[removal['index']]
-                addition_fields = element_fields[addition['index']]
+        if i in processed_indices:
+            continue
+
+        # Retrieve position data from the dictionary
+        line_num_orig = temp_pos_data[i]['orig']
+        line_num_mod = temp_pos_data[i]['mod']
+
+        if isinstance(element, Removal) and hasattr(element, '_matched_idx') and element._matched_idx is not None:
+            # This is the removal part of a modification
+            addition_idx = element._matched_idx
+            if addition_idx < len(diff) and isinstance(diff[addition_idx], Addition):
+                addition = diff[addition_idx]
+                processed_indices.add(addition_idx)
+
+                # Retrieve addition's modified position
+                line_num_mod = temp_pos_data[addition_idx]['mod'] 
+
+                removal_fields = element_fields.get(i, [])
+                addition_fields = element_fields.get(addition_idx, [])
                 
                 merged_fields = []
-                for i in range(max(len(removal_fields), len(addition_fields))):
-                    if i < len(removal_fields) and i < len(addition_fields):
-                        old_val = removal_fields[i]
-                        new_val = addition_fields[i]
-                        if old_val != new_val:
-                            merged_fields.append({
-                                'old': old_val,
-                                'new': new_val,
-                                'changed': True
-                            })
-                        else:
-                            merged_fields.append({
-                                'value': old_val,
-                                'changed': False
-                            })
-                    elif i < len(removal_fields):
-                        merged_fields.append({
-                            'old': removal_fields[i],
-                            'new': '',
-                            'changed': True
-                        })
-                    elif i < len(addition_fields):
-                        merged_fields.append({
-                            'old': '',
-                            'new': addition_fields[i],
-                            'changed': True
-                        })
-                
+                max_local_len = max(len(removal_fields), len(addition_fields))
+                for field_idx in range(max_local_len):
+                    old_val = removal_fields[field_idx] if field_idx < len(removal_fields) else ''
+                    new_val = addition_fields[field_idx] if field_idx < len(addition_fields) else ''
+                    changed = old_val != new_val
+                    merged_fields.append({
+                        'old': old_val,
+                        'new': new_val,
+                        'changed': changed,
+                        'value': new_val # Use new value for display if unchanged
+                    })
+
                 display_elements.append({
                     'type': 'modified',
                     'line_num_orig': line_num_orig,
                     'line_num_mod': line_num_mod,
                     'merged_fields': merged_fields,
-                    'id': row_id,
-                    'original_index': removal['index']  # Store original index for sorting
+                    'original_index': i 
                 })
-    
-    # Sort display elements by line number
-    if show_line_numbers:
-        display_elements = sorted(display_elements, key=lambda x: (
-            int(x['line_num_orig']) if isinstance(x['line_num_orig'], str) and x['line_num_orig'].isdigit() 
-            else x['line_num_orig'] if isinstance(x['line_num_orig'], int) 
-            else x['original_index']  # Use original index as fallback
-        ))
-    
+            else:
+                # Fallback: Matched index is invalid, treat as simple removal
+                display_elements.append({
+                    'type': 'removal',
+                    'line_num_orig': line_num_orig,
+                    'line_num_mod': None,
+                    'fields': element_fields.get(i, []),
+                    'original_index': i
+                })
+        elif isinstance(element, Addition) and hasattr(element, '_matched_idx') and element._matched_idx is not None:
+            # This is the addition part of a modification, but we process it with the removal
+            # Should have been skipped by processed_indices, but handle defensively
+            continue 
+        elif isinstance(element, Addition):
+            # Standalone Addition
+            display_elements.append({
+                'type': 'addition',
+                'line_num_orig': None,
+                'line_num_mod': line_num_mod,
+                'fields': element_fields.get(i, []),
+                'original_index': i 
+            })
+        elif isinstance(element, Removal):
+             # Standalone Removal
+            display_elements.append({
+                'type': 'removal',
+                'line_num_orig': line_num_orig,
+                'line_num_mod': None,
+                'fields': element_fields.get(i, []),
+                'original_index': i
+            })
+        elif isinstance(element, Unchanged):
+            # Unchanged row
+            display_elements.append({
+                'type': 'unchanged',
+                'line_num_orig': line_num_orig,
+                'line_num_mod': line_num_mod,
+                'fields': element_fields.get(i, []),
+                'original_index': i
+            })
+            
+        processed_indices.add(i)
+
+    # Sort display elements correctly by original line number
+    # Ensure modifications, additions, removals are placed based on their original position
+    display_elements.sort(key=lambda x: x.get('line_num_orig') if x.get('line_num_orig') is not None else float('inf'))
+
     # Extract source file name from arguments if available
     source_file = "Original File"
     try:
@@ -940,8 +899,8 @@ def visualize_unified_spreadsheet_html(diff, show_line_numbers, output_file="dif
             source_file = os.path.basename(sys.argv[1])
     except:
         pass
-    
-    # Generate HTML
+
+    # --- HTML Generation (largely unchanged, relies on correct display_elements) ---
     html_content = """
     <!DOCTYPE html>
     <html>
@@ -1152,83 +1111,55 @@ def visualize_unified_spreadsheet_html(diff, show_line_numbers, output_file="dif
         <table>
             <tbody>
     """
-    
-    for idx, element in enumerate(display_elements):
+
+    # --- HTML Table Body Generation ---
+    for element in display_elements:
         element_type = element['type']
+        row_class = element_type # Use type directly as class (e.g., 'modified', 'addition')
+        html_content += f'<tr class="{row_class}">\n'
         
-        # Apply appropriate class to row
-        if element_type == 'addition':
-            html_content += '<tr class="addition">\n'
-        elif element_type == 'removal':
-            html_content += '<tr class="removal">\n'
-        elif element_type == 'modified':
-            html_content += '<tr class="modified">\n'
-        else:
-            html_content += '<tr>\n'
-        
-        # Status column with colored text 
-        status_text = "Added" if element_type == "addition" else "Removed" if element_type == "removal" else "Modified" if element_type == "modified" else "Unchanged"
-        
-        # Apply text color classes to status text
-        if element_type == "addition":
-            html_content += f'<td class="status-col addition-text">{status_text}</td>\n'
-        elif element_type == "removal":
-            html_content += f'<td class="status-col removal-text">{status_text}</td>\n'
-        elif element_type == "modified":
-            html_content += f'<td class="status-col modified-text">{status_text}</td>\n'
-        else:
-            html_content += f'<td class="status-col">{status_text}</td>\n'
+        # Status column
+        status_text = element_type.capitalize()
+        status_class = f"{element_type}-text" # e.g., modified-text
+        html_content += f'<td class="status-col {status_class}">{status_text}</td>\n'
         
         # Line numbers if enabled
         if show_line_numbers:
-            # Index columns with colored text
-            if element_type == "addition":
-                html_content += f'<td class="line-num line-num-left center-align"></td>\n'
-                html_content += f'<td class="line-num line-num-right center-align addition-text">{element["line_num_mod"]}</td>\n'
-            elif element_type == "removal":
-                html_content += f'<td class="line-num line-num-left center-align removal-text">{element["line_num_orig"]}</td>\n'
-                html_content += f'<td class="line-num line-num-right center-align"></td>\n'
-            elif element_type == "modified":
-                html_content += f'<td class="line-num line-num-left center-align removal-text">{element["line_num_orig"]}</td>\n'
-                html_content += f'<td class="line-num line-num-right center-align addition-text">{element["line_num_mod"]}</td>\n'
-            else:
-                html_content += f'<td class="line-num line-num-left center-align">{element["line_num_orig"]}</td>\n'
-                html_content += f'<td class="line-num line-num-right center-align">{element["line_num_mod"]}</td>\n'
+            orig_num_display = element.get('line_num_orig', '')
+            mod_num_display = element.get('line_num_mod', '')
+            
+            orig_class = "removal-text" if element_type in ['removal', 'modified'] else ""
+            mod_class = "addition-text" if element_type in ['addition', 'modified'] else ""
+            
+            html_content += f'<td class="line-num line-num-left center-align {orig_class}">{orig_num_display}</td>\n'
+            html_content += f'<td class="line-num line-num-right center-align {mod_class}">{mod_num_display}</td>\n'
         
-        # Handle field content based on element type
+        # Field content
         if element_type == 'modified':
-            # For modified rows, display both values with different colors in changed cells only
-            for i, field in enumerate(element['merged_fields']):
-                if 'changed' in field and field['changed']:
-                    # Only highlight the changes, not the entire cell
+            for field in element['merged_fields']:
+                if field['changed']:
                     old_display = f'<span class="empty-cell">(empty)</span>' if field["old"] == '' else field["old"]
                     new_display = f'<span class="empty-cell">(empty)</span>' if field["new"] == '' else field["new"]
                     html_content += f'<td><span class="removal-text">{old_display}</span> <span class="arrow">→</span> <span class="addition-text">{new_display}</span></td>\n'
                 else:
-                    # Unchanged fields in modified rows
                     value = field.get("value", "")
-                    if value == '':
-                        html_content += f'<td><span class="empty-cell">(empty)</span></td>\n'
-                    else:
-                        html_content += f'<td>{value}</td>\n'
-            
-            # Add empty cells to fill up to max fields
+                    display = f'<span class="empty-cell">(empty)</span>' if value == '' else value
+                    html_content += f'<td>{display}</td>\n'
+            # Add empty cells if needed
             for _ in range(max_field_count - len(element['merged_fields'])):
                 html_content += '<td></td>\n'
         else:
-            # For additions, removals and unchanged rows
-            for i, field in enumerate(element.get('fields', [])):
-                if field == '':
-                    html_content += f'<td><span class="empty-cell">(empty)</span></td>\n'
-                else:
-                    html_content += f'<td>{field}</td>\n'
-            
-            # Add empty cells to fill up to max fields
-            for _ in range(max_field_count - len(element.get('fields', []))):
+            fields_to_display = element.get('fields', [])
+            for field in fields_to_display:
+                display = f'<span class="empty-cell">(empty)</span>' if field == '' else field
+                html_content += f'<td>{display}</td>\n'
+            # Add empty cells if needed
+            for _ in range(max_field_count - len(fields_to_display)):
                 html_content += '<td></td>\n'
         
         html_content += '</tr>\n'
     
+    # --- HTML Closing --- 
     html_content += """
             </tbody>
         </table>
