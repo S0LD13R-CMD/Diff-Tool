@@ -79,13 +79,11 @@ def _format_diff_lines(diff, pad=0, show_line_numbers=False, original_diff=None)
                 if isinstance(element, Addition):
                     # For additions, show line number from new file
                     prefix = prefix_format % line_num2
-                    if not isinstance(element, Modification):
-                        line_num2 += 1
+                    line_num2 += 1
                 elif isinstance(element, Removal):
                     # For removals, show line number from original file
                     prefix = prefix_format % line_num1
-                    if not isinstance(element, Modification):
-                        line_num1 += 1
+                    line_num1 += 1
                 elif isinstance(element, Unchanged):
                     # For unchanged lines, the decision is more complex
                     if hasattr(element, '_is_moved') and element._is_moved:
@@ -202,9 +200,6 @@ def _format_diff_lines(diff, pad=0, show_line_numbers=False, original_diff=None)
             else:
                 # Regular unchanged row
                 result.append(f"{prefix} {spacing}{element.content.ljust(pad)}")
-        elif isinstance(element, Modification):
-            # Should not reach here as modifications are converted to Addition/Removal pairs
-            pass
 
     return result
 
@@ -443,52 +438,70 @@ def visualize_unified_html(diff, show_line_numbers, output_file="diff_output.htm
         }
         .main-container {
             padding: 20px; /* Add padding to a container div instead */
+            /* Make this container scrollable */
+            overflow-y: auto;
+            /* Set a max height (e.g., viewport height minus toggle bar height) */
+            max-height: calc(100vh - 75px); /* 55px bar + 20px padding */
         }
         table { 
             border-collapse: collapse; 
             width: 100%; 
             background-color: #0d1117;
-            border-color: #30363d;
-            margin-top: 0; /* Remove potential top margin */
+            margin-top: 0; 
+            border-radius: 8px; /* Rounded corners for the table */
+            overflow: hidden; /* Ensures content respects the radius */
+            border-spacing: 0; /* Remove space between cells if collapse is off */
+            /* Optional: Add a subtle outer border if needed */
+            /* border: 1px solid #30363d; */ 
         }
         th, td { 
-            border: 1px solid #30363d; 
+            /* Remove individual cell borders */
+            /* border: 1px solid #30363d; */ 
+            /* Add only bottom border for row separation */
+            border-bottom: 1px solid #30363d; 
             padding: 8px; 
             text-align: left; 
         }
-        th { 
+        /* Remove bottom border from last row */
+        tbody tr:last-child td {{
+             border-bottom: none;
+        }}
+        th {{ /* General styles for ALL header cells (sticky or not) */
             background-color: #161b22; 
             color: #c9d1d9;
-            position: sticky;
-            top: 0;
-            z-index: 10;
+            /* REMOVED sticky positioning from general th */
+            /* position: sticky; */
+            /* top: 55px; */ 
+            /* z-index: 10; */
             border-color: #30363d;
-        }
-        /* Apply background color to all cells except the first three cells (status and index columns) */
-        tr.addition td:not(:nth-child(-n+3)) { background-color: rgba(46, 160, 67, 0.15); }
-        tr.removal td:not(:nth-child(-n+3)) { background-color: rgba(248, 81, 73, 0.15); }
+            /* Ensure bottom border for all header cells */
+            border-bottom: 1px solid #30363d; 
+        }}
+
+        /* == Row Background Highlighting == */
+        tr.addition td:not(:nth-child(-n+3)) {{ background-color: rgba(46, 160, 67, 0.15); }}
+        tr.removal td:not(:nth-child(-n+3)) {{ background-color: rgba(248, 81, 73, 0.15); }}
         
-        /* Status column and line number columns should keep their background for ALL row types */
-        tr td.status-col, tr td.line-num {
+        /* Keep status/index columns default background */
+        tr td.status-col, tr td.line-num {{
             background-color: #161b22 !important;
-            border-color: #30363d;
-        }
-        
-        /* For modified rows, don't apply background highlighting */
-        tr.modified td {
+        }}
+        /* No special background for modified/unchanged rows */
+        tr.modified td {{
             background-color: transparent;
-        }
-        
-        /* Status text colors */
-        .addition-text { color: #3fb950; }
-        .removal-text { color: #f85149; }
-        .modified-text { color: #d29922; }
-        .unchanged { color: #c9d1d9; }
-        
-        /* Center-aligned columns */
-        .center-align {
+        }}
+        /* == End Row Background Highlighting == */
+
+        /* == Text Colors == */
+        .addition-text {{ color: #3fb950; }}
+        .removal-text {{ color: #f85149; }}
+        .modified-text {{ color: #d29922; }}
+        .unchanged {{ color: #c9d1d9; }}
+        /* == End Text Colors == */
+
+        .center-align {{
             text-align: center;
-        }
+        }}
         
         /* Status column styling */
         .status-col {
@@ -497,8 +510,8 @@ def visualize_unified_html(diff, show_line_numbers, output_file="diff_output.htm
             text-align: center;
             font-weight: bold;
             user-select: none;
-            border-right: none; /* No right border to merge with index */
-            border-color: #30363d;
+            /* border-right: none; */ /* Removed */
+            border-color: #30363d; /* Keep for bottom border */
         }
         
         /* Index column styling */
@@ -510,30 +523,30 @@ def visualize_unified_html(diff, show_line_numbers, output_file="diff_output.htm
             background-color: #161b22;
             padding-left: 4px;
             padding-right: 4px;
-            border-color: #30363d;
+            border-color: #30363d; /* Keep for bottom border */
         }
         /* Remove right border from first index column */
         .line-num-left {
-            border-right: none;
+            /* border-right: none; */ /* Removed */
             text-align: right;
             padding-right: 6px;
-            border-left: none; /* Remove border with status column */
-            border-color: #30363d;
+            /* border-left: none; */ /* Removed */
+            border-color: #30363d; /* Keep for bottom border */
         }
         /* Remove left border from second index column */
         .line-num-right {
-            border-left: none;
+            /* border-left: none; */ /* Removed */
             text-align: left;
             padding-left: 6px;
-            border-color: #30363d;
+            border-color: #30363d; /* Keep for bottom border */
         }
         
         /* Index header with centered text in table header */
         .index-header {
             text-align: center !important;
             padding: 8px 0;
-            border-left: none; /* Remove border with status header */
-            border-color: #30363d;
+            /* border-left: none; */ /* Removed */
+            border-color: #30363d; /* Keep for bottom border */
         }
         
         .arrow { color: #8b949e; padding: 0 5px; }
@@ -580,6 +593,8 @@ def visualize_unified_html(diff, show_line_numbers, output_file="diff_output.htm
             top: 55px; /* Adjust position below toggle button height */
             background-color: #000000; /* Black background */
             z-index: 50;
+            /* Ensure the th still gets its bottom border */
+             border-bottom: 1px solid #30363d; 
         }
         
         /* Make sticky header cells black */
@@ -619,6 +634,37 @@ def visualize_unified_html(diff, show_line_numbers, output_file="diff_output.htm
         .toggle-button:hover {
             background-color: #2ea043;
         }
+
+        /* Target the first row within the tbody */
+        tbody tr:first-child th {{
+            /* RESTORED sticky positioning for table header */
+            position: -webkit-sticky; /* For Safari */
+            position: sticky;
+            top: 0; /* Stick to the top of the scrolling container (.table-scroll-wrapper) */
+            background-color: #000000 !important; /* Keep Black background */
+            color: #e0e0e0 !important; /* Lighter text for contrast */
+            /* z-index: 10; */ /* REMOVED */
+            /* Ensure the th still gets its bottom border */
+             border-bottom: 1px solid #30363d; 
+        }}
+        /* Keep status column consistent in sticky header */
+        tbody tr:first-child th.status-col {{
+             background-color: #000000 !important;
+             /* Inherit color or set explicitly if needed */
+        }}
+        /* Keep index columns consistent in sticky header */
+         tbody tr:first-child th.line-num {{
+             background-color: #000000 !important;
+             color: #8b949e !important; /* Override status colors for indices */
+         }}
+         /* Ensure index text color override in sticky header */
+         tbody tr:first-child th.line-num.addition-text,
+         tbody tr:first-child th.line-num.removal-text,
+         tbody tr:first-child th.line-num.modified-text {{
+             color: #8b949e !important; /* Override status colors for indices */
+         }}
+        /* == End Sticky Table Header Row Styles == */
+
     </style>
     <script>
         function toggleEmptyCells() {
@@ -653,14 +699,15 @@ def visualize_unified_html(diff, show_line_numbers, output_file="diff_output.htm
         <button id="toggle-button" class="toggle-button" onclick="toggleEmptyCells()">Hide (empty) Labels</button>
     </div>
     <div class="main-container"> 
-        <table>
-            <thead>
-                <tr>
-                    <th>Line</th>
-                    <th>Content</th>
-                </tr>
-            </thead>
-            <tbody>
+        <div class="table-scroll-wrapper">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Line</th>
+                        <th>Content</th>
+                    </tr>
+                </thead>
+                <tbody>
 """)
     
     # Initialize line numbers
@@ -723,8 +770,9 @@ def visualize_unified_html(diff, show_line_numbers, output_file="diff_output.htm
     
     # Close the HTML
     html_content.append("""
-            </tbody>
-        </table>
+                </tbody>
+            </table>
+        </div> 
     </div> 
 </body>
 </html>""")
@@ -978,54 +1026,94 @@ def visualize_unified_spreadsheet_html(diff, show_line_numbers, output_file="dif
             }}
             .main-container {{
                 padding: 20px; 
+                /* REMOVED scrolling from main container */
+                /* overflow-y: auto; */
+                /* max-height: calc(100vh - 75px); */
             }}
+            /* NEW: Wrapper for the table to handle scrolling */
+            .table-scroll-wrapper {{
+                overflow-y: auto;
+                max-height: calc(100vh - 75px); /* Adjust as needed */
+                /* Apply scrollbar styles here */
+                /* REMOVED Custom scrollbar styling */
+                /* scrollbar-width: thin; */ 
+                /* scrollbar-color: #484f58 #161b22; */ 
+            }}
+            /* REMOVED Webkit scrollbar styles */
+            /* .table-scroll-wrapper::-webkit-scrollbar ... */
+
             table {{ 
-                border-collapse: collapse; 
+                /* border-collapse: collapse; */ /* REMOVED */
                 width: 100%; 
                 background-color: #0d1117;
-                border-color: #30363d;
                 margin-top: 0; 
+                border-radius: 8px; /* Rounded corners for the table */
+                overflow: hidden; /* Ensures content respects the radius */
+                border-spacing: 0; /* Remove space between cells if collapse is off */
+                /* Optional: Add a subtle outer border if needed */
+                /* border: 1px solid #30363d; */ 
             }}
             th, td {{ 
-                border: 1px solid #30363d; 
+                /* Remove individual cell borders */
+                /* border: 1px solid #30363d; */ 
+                /* Add only bottom border for row separation */
+                border-bottom: 1px solid #30363d; 
                 padding: 8px; 
                 text-align: left; 
             }}
-            th {{
+            /* Remove bottom border from last row */
+            tbody tr:last-child td {{
+                 border-bottom: none;
+            }}
+            th {{ /* General styles for ALL header cells (sticky or not) */
                 background-color: #161b22; 
                 color: #c9d1d9;
-                position: sticky;
-                /* Adjust sticky top based on toggle container height */
-                top: 55px; /* Height of toggle container */ 
-                z-index: 10;
+                /* REMOVED sticky positioning from general th */
+                /* position: sticky; */
+                /* top: 55px; */ 
+                /* z-index: 10; */
                 border-color: #30363d;
+                /* Ensure bottom border for all header cells */
+                border-bottom: 1px solid #30363d; 
             }}
+
+            /* == Row Background Highlighting == */
             tr.addition td:not(:nth-child(-n+3)) {{ background-color: rgba(46, 160, 67, 0.15); }}
             tr.removal td:not(:nth-child(-n+3)) {{ background-color: rgba(248, 81, 73, 0.15); }}
             
+            /* Keep status/index columns default background */
             tr td.status-col, tr td.line-num {{
                 background-color: #161b22 !important;
-                border-color: #30363d;
             }}
+            /* No special background for modified/unchanged rows */
             tr.modified td {{
                 background-color: transparent;
             }}
+            /* == End Row Background Highlighting == */
+
+            /* == Text Colors == */
             .addition-text {{ color: #3fb950; }}
             .removal-text {{ color: #f85149; }}
             .modified-text {{ color: #d29922; }}
             .unchanged {{ color: #c9d1d9; }}
+            /* == End Text Colors == */
+
             .center-align {{
                 text-align: center;
             }}
+            
+            /* Status column styling */
             .status-col {{
                 background-color: #161b22;
                 min-width: 80px;
                 text-align: center;
                 font-weight: bold;
                 user-select: none;
-                border-right: none; 
-                border-color: #30363d;
+                /* border-right: none; */ /* Removed */
+                border-color: #30363d; /* Keep for bottom border */
             }}
+            
+            /* Index column styling */
             .line-num {{ 
                 color: #8b949e; 
                 min-width: 30px; 
@@ -1034,39 +1122,53 @@ def visualize_unified_spreadsheet_html(diff, show_line_numbers, output_file="dif
                 background-color: #161b22;
                 padding-left: 4px;
                 padding-right: 4px;
-                border-color: #30363d;
+                border-color: #30363d; /* Keep for bottom border */
             }}
+            /* Remove right border from first index column */
             .line-num-left {{
-                border-right: none;
+                /* border-right: none; */ /* Removed */
                 text-align: right;
                 padding-right: 6px;
-                border-left: none; 
-                border-color: #30363d;
+                /* border-left: none; */ /* Removed */
+                border-color: #30363d; /* Keep for bottom border */
             }}
+            /* Remove left border from second index column */
             .line-num-right {{
-                border-left: none;
+                /* border-left: none; */ /* Removed */
                 text-align: left;
                 padding-left: 6px;
-                border-color: #30363d;
+                border-color: #30363d; /* Keep for bottom border */
             }}
+            
+            /* Index header with centered text in table header */
             .index-header {{
                 text-align: center !important;
                 padding: 8px 0;
-                border-left: none; 
-                border-color: #30363d;
+                /* border-left: none; */ /* Removed */
+                border-color: #30363d; /* Keep for bottom border */
             }}
+            
             .arrow {{ color: #8b949e; padding: 0 5px; }}
+            
             .row-id {{ font-weight: bold; }}
+            
             .file-header {{ 
                 font-weight: bold; 
                 background-color: #161b22;
                 color: #c9d1d9;
                 border-color: #30363d;
             }}
+
+            /* Empty cell styling */
             .empty-cell {{
                 color: #6e7681;
                 font-style: italic;
             }}
+            
+            /* Style for truly empty cells - visible when (empty) text is hidden */
+            /* .truly-empty { ... } removed as it was empty */
+            
+            /* Force all borders to be #30363d */
             * {{ border-color: #30363d !important; }}
 
             /* Toggle container - now using flex */
@@ -1076,6 +1178,7 @@ def visualize_unified_spreadsheet_html(diff, show_line_numbers, output_file="dif
                 padding: 10px 20px; 
                 background-color: #0d1117; 
                 z-index: 100;
+                /* margin-bottom: 15px; Removed, table margin handles spacing */
                 border-bottom: 1px solid #30363d;
                 width: 100%; 
                 box-sizing: border-box; 
@@ -1116,12 +1219,15 @@ def visualize_unified_spreadsheet_html(diff, show_line_numbers, output_file="dif
             /* == Sticky Table Header Row Styles == */
             /* Target the first row within the tbody */
             tbody tr:first-child th {{
+                /* RESTORED sticky positioning for table header */
+                position: -webkit-sticky; /* For Safari */
                 position: sticky;
-                /* Position below the .toggle-container (height: 55px) */
-                top: 55px; 
-                background-color: #000000 !important; /* Black background */
+                top: 0; /* Stick to the top of the scrolling container (.table-scroll-wrapper) */
+                background-color: #000000 !important; /* Keep Black background */
                 color: #e0e0e0 !important; /* Lighter text for contrast */
-                z-index: 50; /* Below toggle-container but above table body */
+                /* z-index: 10; */ /* REMOVED */
+                /* Ensure the th still gets its bottom border */
+                 border-bottom: 1px solid #30363d; 
             }}
             /* Keep status column consistent in sticky header */
             tbody tr:first-child th.status-col {{
@@ -1131,7 +1237,7 @@ def visualize_unified_spreadsheet_html(diff, show_line_numbers, output_file="dif
             /* Keep index columns consistent in sticky header */
              tbody tr:first-child th.line-num {{
                  background-color: #000000 !important;
-                 color: #8b949e !important; /* Keep original grey for indices */
+                 color: #8b949e !important; /* Override status colors for indices */
              }}
              /* Ensure index text color override in sticky header */
              tbody tr:first-child th.line-num.addition-text,
@@ -1171,16 +1277,17 @@ def visualize_unified_spreadsheet_html(diff, show_line_numbers, output_file="dif
             </div>
         </div>
         <div class="main-container"> 
-            <table>
-                <!-- Ensure the header row is generated within tbody -->
-                <tbody>
-                    <tr>
-                        <!-- Header Cells (using th for semantics) -->
-                        <th class="status-col">Status</th>
-                        <th class="line-num line-num-left index-header" colspan="2">Line</th> 
-                        <!-- Generate header cells for data columns --> 
-                        {header_cells_html}
-                    </tr>
+            <div class="table-scroll-wrapper">
+                <table>
+                    <!-- Ensure the header row is generated within tbody -->
+                    <tbody>
+                        <tr>
+                            <!-- Header Cells (using th for semantics) -->
+                            <th class="status-col">Status</th>
+                            <th class="line-num line-num-left index-header" colspan="2">Line</th> 
+                            <!-- Generate header cells for data columns --> 
+                            {header_cells_html}
+                        </tr>
     """
 
     # --- HTML Table Body Generation ---
@@ -1234,8 +1341,9 @@ def visualize_unified_spreadsheet_html(diff, show_line_numbers, output_file="dif
     
     # --- HTML Closing --- 
     html_content += """
-                </tbody>
-            </table>
+                    </tbody>
+                </table>
+            </div> 
         </div> 
     </body>
     </html>
