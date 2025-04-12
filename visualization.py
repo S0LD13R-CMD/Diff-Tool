@@ -546,9 +546,7 @@ def visualize_unified_html(diff, show_line_numbers, output_file="diff_output.htm
         }
         
         /* Style for truly empty cells - visible when (empty) text is hidden */
-        .truly-empty {
-            /* Keep the same background as regular cells, no special styling */
-        }
+        /* .truly-empty { ... } removed as it was empty */
         
         /* Force all borders to be #30363d */
         * {
@@ -1065,9 +1063,7 @@ def visualize_unified_spreadsheet_html(diff, show_line_numbers, output_file="dif
             }
             
             /* Style for truly empty cells - visible when (empty) text is hidden */
-            .truly-empty {
-                /* Keep the same background as regular cells, no special styling */
-            }
+            /* .truly-empty { ... } removed as it was empty */
             
             /* Force all borders to be #30363d */
             * {
@@ -1167,12 +1163,6 @@ def visualize_unified_spreadsheet_html(diff, show_line_numbers, output_file="dif
         </div>
         <div class="main-container"> 
             <table>
-                <thead>
-                    <tr>
-                        <th>Line</th>
-                        <th>Content</th>
-                    </tr>
-                </thead>
                 <tbody>
     """
 
