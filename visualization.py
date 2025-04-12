@@ -437,6 +437,7 @@ def visualize_unified_html(diff, show_line_numbers, output_file="diff_output.htm
             border-collapse: collapse; 
             width: 100%; 
             background-color: #0d1117;
+            border-color: #30363d;
         }
         th, td { 
             border: 1px solid #30363d; 
@@ -446,23 +447,46 @@ def visualize_unified_html(diff, show_line_numbers, output_file="diff_output.htm
         th { 
             background-color: #161b22; 
             color: #c9d1d9;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+            border-color: #30363d;
         }
         /* Apply background color to all cells except the first three cells (status and index columns) */
         tr.addition td:not(:nth-child(-n+3)) { background-color: rgba(46, 160, 67, 0.15); }
         tr.removal td:not(:nth-child(-n+3)) { background-color: rgba(248, 81, 73, 0.15); }
+        
+        /* Status column and line number columns should keep their background for ALL row types */
+        tr td.status-col, tr td.line-num {
+            background-color: #161b22 !important;
+            border-color: #30363d;
+        }
+        
+        /* For modified rows, don't apply background highlighting */
+        tr.modified td {
+            background-color: transparent;
+        }
+        
         /* Status text colors */
         .addition-text { color: #3fb950; }
         .removal-text { color: #f85149; }
         .modified-text { color: #d29922; }
         .unchanged { color: #c9d1d9; }
+        
         /* Center-aligned columns */
         .center-align {
             text-align: center;
         }
-        /* Status column styling - match index columns */
+        
+        /* Status column styling */
         .status-col {
             background-color: #161b22;
-            border-right: none;
+            min-width: 80px;
+            text-align: center;
+            font-weight: bold;
+            user-select: none;
+            border-right: none; /* No right border to merge with index */
+            border-color: #30363d;
         }
         
         /* Index column styling */
@@ -474,6 +498,7 @@ def visualize_unified_html(diff, show_line_numbers, output_file="diff_output.htm
             background-color: #161b22;
             padding-left: 4px;
             padding-right: 4px;
+            border-color: #30363d;
         }
         /* Remove right border from first index column */
         .line-num-left {
@@ -481,46 +506,44 @@ def visualize_unified_html(diff, show_line_numbers, output_file="diff_output.htm
             text-align: right;
             padding-right: 6px;
             border-left: none; /* Remove border with status column */
+            border-color: #30363d;
         }
         /* Remove left border from second index column */
         .line-num-right {
             border-left: none;
             text-align: left;
             padding-left: 6px;
+            border-color: #30363d;
         }
-        /* Index number divider */
-        .index-separator {
-            color: #30363d;
-            display: inline-block;
-            width: 100%;
-            text-align: center;
-            font-weight: normal;
-            position: relative;
-        }
-        /* Combined column look for the line number header cells */
-        .line-num-header {
-            border-right: none;
-            background-color: #161b22;
-            text-align: center;
-            padding-right: 0;
-        }
-        .line-num-header-right {
-            border-left: none;
-            background-color: #161b22;
-            text-align: center;
-            padding-left: 0;
-        }
+        
         /* Index header with centered text in table header */
         .index-header {
             text-align: center !important;
             padding: 8px 0;
+            border-left: none; /* Remove border with status header */
+            border-color: #30363d;
         }
+        
         .arrow { color: #8b949e; padding: 0 5px; }
+        
         .row-id { font-weight: bold; }
+        
         .file-header { 
             font-weight: bold; 
             background-color: #161b22;
             color: #c9d1d9;
+            border-color: #30363d;
+        }
+
+        /* Empty cell styling */
+        .empty-cell {
+            color: #6e7681;
+            font-style: italic;
+        }
+        
+        /* Force all borders to be #30363d */
+        * {
+            border-color: #30363d !important;
         }
     </style>
 </head>
@@ -670,7 +693,9 @@ def visualize_unified_spreadsheet_html(diff, show_line_numbers, output_file="dif
             # Extract ID from the first column (assuming CSV format)
             parts = element.content.split(',')
             if len(parts) > 0:
-                row_id = parts[0]
+                # Generate a proper row identifier
+                # If first cell is empty, use a composite key with position to ensure uniqueness
+                row_id = parts[0] if parts[0].strip() else f"empty_cell_{i}"
                 if row_id not in rows_by_id:
                     rows_by_id[row_id] = []
                 # Store the element, its index, and type
@@ -685,36 +710,19 @@ def visualize_unified_spreadsheet_html(diff, show_line_numbers, output_file="dif
     element_fields = {}
     for i, element in enumerate(diff):
         if isinstance(element, (Removal, Addition, Unchanged)):
-            with StringIO(element.content) as f:
-                reader = csv.reader(f)
-                try:
+            try:
+                with StringIO(element.content) as f:
+                    reader = csv.reader(f)
                     fields = next(reader)
                     element_fields[i] = fields
-                except StopIteration:
-                    element_fields[i] = []  # Empty line
+            except (StopIteration, csv.Error):
+                # Handle empty lines or invalid CSV
+                element_fields[i] = element.content.split(',')
     
     # Determine how many columns we need by finding the max field count
     max_field_count = 0
     for fields in element_fields.values():
         max_field_count = max(max_field_count, len(fields))
-    
-    # Find the header row (first row from either file)
-    header_fields = []
-    
-    # First try to find a row that has 'ID' as first column in either file
-    for idx, fields in sorted(element_fields.items()):
-        if fields and fields[0] == 'ID':
-            header_fields = fields
-            break
-    
-    # If no ID column found, just use the first row we encounter
-    if not header_fields and element_fields:
-        first_idx = min(element_fields.keys())
-        header_fields = element_fields[first_idx]
-    
-    # If still no header, use generic field names
-    if not header_fields:
-        header_fields = [f"Field {i+1}" for i in range(max_field_count)]
     
     # Keep track of row positions in the original file
     original_positions = {}
@@ -728,8 +736,9 @@ def visualize_unified_spreadsheet_html(diff, show_line_numbers, output_file="dif
     for i, element in enumerate(diff):
         if isinstance(element, (Removal, Unchanged)):
             parts = element.content.split(',')
-            if parts and len(parts) > 0:
-                row_id = parts[0]
+            if parts:
+                # Generate a proper row identifier
+                row_id = parts[0] if parts[0].strip() else f"empty_cell_{i}"
                 original_positions[row_id] = orig_position
                 orig_position += 1
                 
@@ -740,8 +749,9 @@ def visualize_unified_spreadsheet_html(diff, show_line_numbers, output_file="dif
                 
         if isinstance(element, (Addition, Unchanged)):
             parts = element.content.split(',')
-            if parts and len(parts) > 0:
-                row_id = parts[0]
+            if parts:
+                # Generate a proper row identifier
+                row_id = parts[0] if parts[0].strip() else f"empty_cell_{i}"
                 if row_id not in modified_positions:
                     modified_positions[row_id] = mod_position
                     mod_position += 1
@@ -773,7 +783,8 @@ def visualize_unified_spreadsheet_html(diff, show_line_numbers, output_file="dif
                 'line_num_orig': line_num_orig,
                 'line_num_mod': line_num_mod,
                 'fields': element_fields[index],
-                'id': row_id
+                'id': row_id,
+                'original_index': index  # Store original index for sorting
             })
         elif len(elements) == 2:
             # Modified row - need to show both versions
@@ -830,36 +841,16 @@ def visualize_unified_spreadsheet_html(diff, show_line_numbers, output_file="dif
                     'line_num_orig': line_num_orig,
                     'line_num_mod': line_num_mod,
                     'merged_fields': merged_fields,
-                    'id': row_id
+                    'id': row_id,
+                    'original_index': removal['index']  # Store original index for sorting
                 })
     
-    # Sort display elements by line number - put all modifications, additions, and removals first
-    # Then append unchanged items ordered by their line number
+    # Sort display elements by line number
     if show_line_numbers:
-        # First, separate changed and unchanged elements
-        changed_elements = [e for e in display_elements if e['type'] != 'unchanged']
-        unchanged_elements = [e for e in display_elements if e['type'] == 'unchanged']
-        
-        # Sort changed elements by original line number
-        changed_elements.sort(key=lambda x: (
-            int(x['line_num_orig']) if isinstance(x['line_num_orig'], str) and x['line_num_orig'].isdigit() 
-            else x['line_num_orig'] if isinstance(x['line_num_orig'], int)
-            else float('inf')
-        ))
-        
-        # Sort unchanged elements by original line number
-        unchanged_elements.sort(key=lambda x: (
-            int(x['line_num_orig']) if isinstance(x['line_num_orig'], str) and x['line_num_orig'].isdigit() 
-            else x['line_num_orig'] if isinstance(x['line_num_orig'], int)
-            else float('inf')
-        ))
-        
-        # Alternatively, interleave them based on original line number
-        # This maintains the original document ordering
         display_elements = sorted(display_elements, key=lambda x: (
             int(x['line_num_orig']) if isinstance(x['line_num_orig'], str) and x['line_num_orig'].isdigit() 
             else x['line_num_orig'] if isinstance(x['line_num_orig'], int) 
-            else float('inf')
+            else x['original_index']  # Use original index as fallback
         ))
     
     # Extract source file name from arguments if available
@@ -876,6 +867,7 @@ def visualize_unified_spreadsheet_html(diff, show_line_numbers, output_file="dif
     <!DOCTYPE html>
     <html>
     <head>
+        <title>CSV Diff Results</title>
         <style>
             body { 
                 font-family: monospace; 
@@ -888,6 +880,7 @@ def visualize_unified_spreadsheet_html(diff, show_line_numbers, output_file="dif
                 border-collapse: collapse; 
                 width: 100%; 
                 background-color: #0d1117;
+                border-color: #30363d;
             }
             th, td { 
                 border: 1px solid #30363d; 
@@ -897,23 +890,46 @@ def visualize_unified_spreadsheet_html(diff, show_line_numbers, output_file="dif
             th { 
                 background-color: #161b22; 
                 color: #c9d1d9;
+                position: sticky;
+                top: 0;
+                z-index: 10;
+                border-color: #30363d;
             }
             /* Apply background color to all cells except the first three cells (status and index columns) */
             tr.addition td:not(:nth-child(-n+3)) { background-color: rgba(46, 160, 67, 0.15); }
             tr.removal td:not(:nth-child(-n+3)) { background-color: rgba(248, 81, 73, 0.15); }
+            
+            /* Status column and line number columns should keep their background for ALL row types */
+            tr td.status-col, tr td.line-num {
+                background-color: #161b22 !important;
+                border-color: #30363d;
+            }
+            
+            /* For modified rows, don't apply background highlighting */
+            tr.modified td {
+                background-color: transparent;
+            }
+            
             /* Status text colors */
             .addition-text { color: #3fb950; }
             .removal-text { color: #f85149; }
             .modified-text { color: #d29922; }
             .unchanged { color: #c9d1d9; }
+            
             /* Center-aligned columns */
             .center-align {
                 text-align: center;
             }
-            /* Status column styling - match index columns */
+            
+            /* Status column styling */
             .status-col {
                 background-color: #161b22;
-                border-right: none;
+                min-width: 80px;
+                text-align: center;
+                font-weight: bold;
+                user-select: none;
+                border-right: none; /* No right border to merge with index */
+                border-color: #30363d;
             }
             
             /* Index column styling */
@@ -925,6 +941,7 @@ def visualize_unified_spreadsheet_html(diff, show_line_numbers, output_file="dif
                 background-color: #161b22;
                 padding-left: 4px;
                 padding-right: 4px;
+                border-color: #30363d;
             }
             /* Remove right border from first index column */
             .line-num-left {
@@ -932,108 +949,77 @@ def visualize_unified_spreadsheet_html(diff, show_line_numbers, output_file="dif
                 text-align: right;
                 padding-right: 6px;
                 border-left: none; /* Remove border with status column */
+                border-color: #30363d;
             }
             /* Remove left border from second index column */
             .line-num-right {
                 border-left: none;
                 text-align: left;
                 padding-left: 6px;
+                border-color: #30363d;
             }
-            /* Index number divider */
-            .index-separator {
-                color: #30363d;
-                display: inline-block;
-                width: 100%;
-                text-align: center;
-                font-weight: normal;
-                position: relative;
-            }
-            /* Apply a dividing line between the indices */
-            .index-separator::after {
-                content: "";
-                position: absolute;
-                top: 50%;
-                left: 0;
-                right: 0;
-                border-top: 1px solid #30363d;
-                z-index: 1;
-            }
-            /* Put the text on top of the line */
-            .index-separator span {
-                background-color: #161b22;
-                position: relative;
-                z-index: 2;
-                padding: 0 4px;
-            }
-            /* Combined column look for the line number header cells */
-            .line-num-header {
-                border-right: none;
-                background-color: #161b22;
-                text-align: center;
-                padding-right: 0;
-            }
-            .line-num-header-right {
-                border-left: none;
-                background-color: #161b22;
-                text-align: center;
-                padding-left: 0;
-            }
+            
             /* Index header with centered text in table header */
             .index-header {
                 text-align: center !important;
                 padding: 8px 0;
+                border-left: none; /* Remove border with status header */
+                border-color: #30363d;
             }
+            
             .arrow { color: #8b949e; padding: 0 5px; }
+            
             .row-id { font-weight: bold; }
+            
             .file-header { 
                 font-weight: bold; 
                 background-color: #161b22;
                 color: #c9d1d9;
+                border-color: #30363d;
+            }
+
+            /* Empty cell styling */
+            .empty-cell {
+                color: #6e7681;
+                font-style: italic;
+            }
+            
+            /* Force all borders to be #30363d */
+            * {
+                border-color: #30363d !important;
             }
         </style>
     </head>
     <body>
         <table>
-            <thead>
-                <tr>
-                    <th class="center-align">Status</th>
-    """
-    
-    if show_line_numbers:
-        html_content += """
-                    <th colspan="2" class="center-align index-header">Index</th>
-        """
-    
-    # Add a single unified header that spans all data columns
-    data_columns = max_field_count
-    html_content += f'<th colspan="{data_columns}" class="file-header">{source_file}</th>\n'
-    
-    html_content += """
-            </thead>
             <tbody>
     """
     
-    for element in display_elements:
+    for idx, element in enumerate(display_elements):
         element_type = element['type']
         
-        # Apply row class for added and deleted rows (but exclude the status column from highlighting)
-        if element_type in ('addition', 'removal'):
-            html_content += f'<tr class="{element_type}">\n'
+        # Apply appropriate class to row
+        if element_type == 'addition':
+            html_content += '<tr class="addition">\n'
+        elif element_type == 'removal':
+            html_content += '<tr class="removal">\n'
+        elif element_type == 'modified':
+            html_content += '<tr class="modified">\n'
         else:
-            html_content += f'<tr>\n'
+            html_content += '<tr>\n'
         
-        # Status column with colored text instead of background
+        # Status column with colored text 
         status_text = "Added" if element_type == "addition" else "Removed" if element_type == "removal" else "Modified" if element_type == "modified" else "Unchanged"
         
         # Apply text color classes to status text
         if element_type == "addition":
-            html_content += f'<td class="center-align status-col addition-text">{status_text}</td>\n'
+            html_content += f'<td class="status-col addition-text">{status_text}</td>\n'
         elif element_type == "removal":
-            html_content += f'<td class="center-align status-col removal-text">{status_text}</td>\n'
+            html_content += f'<td class="status-col removal-text">{status_text}</td>\n'
         elif element_type == "modified":
-            html_content += f'<td class="center-align status-col modified-text">{status_text}</td>\n'
+            html_content += f'<td class="status-col modified-text">{status_text}</td>\n'
         else:
-            html_content += f'<td class="center-align status-col">{status_text}</td>\n'
+            html_content += f'<td class="status-col">{status_text}</td>\n'
         
         # Line numbers if enabled
         if show_line_numbers:
@@ -1053,12 +1039,18 @@ def visualize_unified_spreadsheet_html(diff, show_line_numbers, output_file="dif
         
         # Handle field content based on element type
         if element_type == 'modified':
-            # For modified rows, display both values with different colors
+            # For modified rows, display both values with different colors in changed cells only
             for i, field in enumerate(element['merged_fields']):
                 if 'changed' in field and field['changed']:
-                    html_content += f'<td><span class="removal-text">{field["old"]}</span> <span class="arrow">→</span> <span class="addition-text">{field["new"]}</span></td>\n'
+                    # Only highlight the changes, not the entire cell
+                    old_display = f'<span class="empty-cell">(empty)</span>' if field["old"] == '' else field["old"]
+                    new_display = f'<span class="empty-cell">(empty)</span>' if field["new"] == '' else field["new"]
+                    html_content += f'<td><span class="removal-text">{old_display}</span> <span class="arrow">→</span> <span class="addition-text">{new_display}</span></td>\n'
                 else:
-                    html_content += f'<td>{field.get("value", "")}</td>\n'
+                    # Unchanged fields in modified rows
+                    value = field.get("value", "")
+                    display = f'<span class="empty-cell">(empty)</span>' if value == '' else value
+                    html_content += f'<td>{display}</td>\n'
             
             # Add empty cells to fill up to max fields
             for _ in range(max_field_count - len(element['merged_fields'])):
@@ -1066,7 +1058,8 @@ def visualize_unified_spreadsheet_html(diff, show_line_numbers, output_file="dif
         else:
             # For additions, removals and unchanged rows
             for i, field in enumerate(element.get('fields', [])):
-                html_content += f'<td>{field}</td>\n'
+                display = f'<span class="empty-cell">(empty)</span>' if field == '' else field
+                html_content += f'<td>{display}</td>\n'
             
             # Add empty cells to fill up to max fields
             for _ in range(max_field_count - len(element.get('fields', []))):
@@ -1084,5 +1077,7 @@ def visualize_unified_spreadsheet_html(diff, show_line_numbers, output_file="dif
     # Write to file
     with open(output_file, 'w') as f:
         f.write(html_content)
+    
+    print(f"\nHTML diff output saved to {output_file}\n")
     
     return output_file

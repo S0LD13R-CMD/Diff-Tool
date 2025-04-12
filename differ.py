@@ -151,6 +151,10 @@ def find_best_row_matches(rows1, rows2, similarity_threshold=0.5):
     used_indices2 = set()
     
     for idx1, row1 in enumerate(rows1):
+        # Skip completely empty rows
+        if not row1 or all(cell.strip() == '' for cell in row1):
+            continue
+            
         best_match_idx = None
         best_match_score = similarity_threshold  # Only consider matches above threshold
         
@@ -158,6 +162,10 @@ def find_best_row_matches(rows1, rows2, similarity_threshold=0.5):
         for idx2, row2 in enumerate(rows2):
             if idx2 in used_indices2:
                 continue  # This row is already matched
+            
+            # Skip completely empty rows    
+            if not row2 or all(cell.strip() == '' for cell in row2):
+                continue
                 
             score = calculate_row_similarity(row1, row2)
             if score > best_match_score:

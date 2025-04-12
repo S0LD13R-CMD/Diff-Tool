@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Original CSS</title>
+    <style>
+        body { 
+            font-family: monospace; 
+            background-color: #0d1117; 
+            color: #c9d1d9; 
+            margin: 0;
+            padding: 20px;
+        }
+        table { 
+            border-collapse: collapse; 
+            width: 100%; 
+            background-color: #0d1117;
+        }
+        th, td { 
+            border: 1px solid #30363d; 
+            padding: 8px; 
+            text-align: left; 
+        }
+        th { 
+            background-color: #161b22; 
+            color: #c9d1d9;
+        }
+        /* Apply background color to all cells except the first three cells (status and index columns) */
+        tr.addition td:not(:nth-child(-n+3)) { background-color: rgba(46, 160, 67, 0.15); }
+        tr.removal td:not(:nth-child(-n+3)) { background-color: rgba(248, 81, 73, 0.15); }
+        /* Status text colors */
+        .addition-text { color: #3fb950; }
+        .removal-text { color: #f85149; }
+        .modified-text { color: #d29922; }
+        .unchanged { color: #c9d1d9; }
+        /* Center-aligned columns */
+        .center-align {
+            text-align: center;
+        }
+        /* Status column styling - match index columns */
+        .status-col {
+            background-color: #161b22;
+            border-right: none;
+        }
+        
+        /* Index column styling */
+        .line-num { 
+            color: #8b949e; 
+            min-width: 30px; 
+            max-width: 40px;
+            user-select: none;
+            background-color: #161b22;
+            padding-left: 4px;
+            padding-right: 4px;
+        }
+        /* Remove right border from first index column */
+        .line-num-left {
+            border-right: none;
+            text-align: right;
+            padding-right: 6px;
+            border-left: none; /* Remove border with status column */
+        }
+        /* Remove left border from second index column */
+        .line-num-right {
+            border-left: none;
+            text-align: left;
+            padding-left: 6px;
+        }
+        /* Index number divider */
+        .index-separator {
+            color: #30363d;
+            display: inline-block;
+            width: 100%;
+            text-align: center;
+            font-weight: normal;
+            position: relative;
+        }
+        /* Apply a dividing line between the indices */
+        .index-separator::after {
+            content: "";
+            position: absolute;
+            top: 50%;
+            left: 0;
+            right: 0;
+            border-top: 1px solid #30363d;
+            z-index: 1;
+        }
+        /* Put the text on top of the line */
+        .index-separator span {
+            background-color: #161b22;
+            position: relative;
+            z-index: 2;
+            padding: 0 4px;
+        }
+        /* Combined column look for the line number header cells */
+        .line-num-header {
+            border-right: none;
+            background-color: #161b22;
+            text-align: center;
+            padding-right: 0;
+        }
+        .line-num-header-right {
+            border-left: none;
+            background-color: #161b22;
+            text-align: center;
+            padding-left: 0;
+        }
+        /* Index header with centered text in table header */
+        .index-header {
+            text-align: center !important;
+            padding: 8px 0;
+        }
+        .arrow { color: #8b949e; padding: 0 5px; }
+        .row-id { font-weight: bold; }
+        .file-header { 
+            font-weight: bold; 
+            background-color: #161b22;
+            color: #c9d1d9;
+        }
+        /* Force all borders to be #30363d */
+        * {
+            border-color: #30363d !important;
+        }
+    </style>
+</head>
+<body>
+    <h1>Original CSS Reference</h1>
+    <p>This file contains the original CSS for reference.</p>
+</body>
+</html> 

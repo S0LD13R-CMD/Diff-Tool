@@ -26,16 +26,20 @@ def _setup_arg_parser():
                         action='store_true',
                         help="If set, hide line numbers.")
     parser.add_argument("--html_output",
-                        default=False,
+                        default=True,
                         action='store_true',
                         help="If set, generates an HTML file with the diff results.")
-    parser.add_argument("--output_file",
-                        default="diff_output.html",
-                        help="The name of the output HTML file (if --html_output is used).")
-    parser.add_argument("--spreadsheet",
+    parser.add_argument("--console_output",
                         default=False,
                         action='store_true',
-                        help="If set, generates a spreadsheet-like HTML view with each field in its own cell.")
+                        help="If set, outputs diff results to console instead of HTML.")
+    parser.add_argument("--output_file",
+                        default="diff_output.html",
+                        help="The name of the output HTML file (if using HTML output).")
+    parser.add_argument("--simple_html",
+                        default=False,
+                        action='store_true',
+                        help="If set, generates a simpler HTML view without spreadsheet formatting.")
 
     return parser
 
@@ -55,16 +59,17 @@ def main():
     # Override show_line_numbers if hide_line_numbers is specified
     show_line_numbers = args.show_line_numbers and not args.hide_line_numbers
 
-    if args.html_output:
-        if args.spreadsheet:
-            # Unified spreadsheet-like HTML view
-            visualize_unified_spreadsheet_html(diff_result, show_line_numbers, args.output_file)
-        else:
-            # Unified HTML view
-            visualize_unified_html(diff_result, show_line_numbers, args.output_file)
-    else:
+    if args.console_output:
         # Console unified view
         visualize_unified(diff_result, show_line_numbers)
+    else:
+        # Default to HTML output
+        if args.simple_html:
+            # Unified HTML view (non-spreadsheet)
+            visualize_unified_html(diff_result, show_line_numbers, args.output_file)
+        else:
+            # Default to spreadsheet-like HTML view
+            visualize_unified_spreadsheet_html(diff_result, show_line_numbers, args.output_file)
 
 if __name__ == '__main__':
     main()
