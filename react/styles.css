@@ -131,13 +131,3 @@
   white-space: pre;
   padding: 0;
 }
-
-.diff-visualization .diff-moved {
-  background: purple;
-  color: white;
-}
-
-.diff-visualization .diff-moved::before {
-  content: "~ ";
-  padding: 0;
-}

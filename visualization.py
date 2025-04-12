@@ -1,7 +1,10 @@
 """Visualizes diffing results."""
 
 import math
-from differ import Addition, Removal, Unchanged, Modification
+from differ import Addition, Removal, Unchanged
+import csv
+from io import StringIO
+import os
 
 _TERM_CODE_RED = 31
 _TERM_CODE_GREEN = 32
@@ -205,15 +208,6 @@ def _format_diff_lines(diff, pad=0, show_line_numbers=False, original_diff=None)
 
     return result
 
-def _identify_modifications(diff):
-    """Processes a diff list to identify and group modifications.
-    
-    This is a legacy function that's superseded by the segment-level diffing
-    in differ.py, but kept for compatibility with the existing code.
-    """
-    # The mark_segment_changes in differ.py already does this work
-    return diff
-
 def visualize_unified(diff, show_line_numbers):
     """Visualizes a diffing result in a unified view."""
     from differ import Removal  # Import the class to create new instances
@@ -298,10 +292,6 @@ def _html_highlight_segments(content, diff_indices):
             highlighted_segments.append(segment)
     
     return ','.join(highlighted_segments)
-
-def _html_strikethrough(content):
-    """Wraps content in a strikethrough span with the removal CSS class."""
-    return f'<span class="removal strikethrough">{content}</span>'
 
 def visualize_unified_html(diff, show_line_numbers, output_file="diff_output.html"):
     """Generates an HTML visualization of the diffing result."""
@@ -418,19 +408,15 @@ def visualize_unified_html(diff, show_line_numbers, output_file="diff_output.htm
     if header_modified:
         # Use the fields from the new header (Addition at index 1)
         header_row_fields = element_fields.get(1, [])
-        print("DEBUG: Header modified, using new header fields:", header_row_fields)
     elif element_fields: # Header not modified, use original logic
         first_row_fields = element_fields.get(0)
         # Try to use first row if it looks like a header, otherwise generate
         if first_row_fields and any(h.lower() in ['id', 'name', 'date', 'col'] for h in first_row_fields if isinstance(h, str)):
              header_row_fields = first_row_fields
-             print("DEBUG: Header not modified, using detected header fields:", header_row_fields)
-        # else: generate below if needed
     
     # If no specific header fields determined, generate generic ones
     if not header_row_fields:
         header_row_fields = [f'Col_{i+1}' for i in range(max_field_count)]
-        print("DEBUG: No specific header found, generating generic headers:", header_row_fields)
     
     # Ensure max_field_count reflects the chosen header, or the max seen
     max_field_count = max(max_field_count, len(header_row_fields))
@@ -748,13 +734,28 @@ def visualize_unified_html(diff, show_line_numbers, output_file="diff_output.htm
         f.write('\n'.join(html_content))
     
     print(f"\nHTML diff output saved to {output_file}\n")
+    
+    return output_file
+
+# --- Helper function for generating table cells --- 
+def _generate_td(field_value):
+    """Generates a <td> element, handling empty values."""
+    if field_value == '':
+        return '<td><span class="empty-cell">(empty)</span></td>'
+    else:
+        return f'<td>{field_value}</td>'
+
+def _generate_modified_td(old_val, new_val):
+    """Generates a <td> for a modified field, showing old and new."""
+    old_display = f'<span class="empty-cell">(empty)</span>' if old_val == '' else old_val
+    new_display = f'<span class="empty-cell">(empty)</span>' if new_val == '' else new_val
+    return f'<td><span class="removal-text">{old_display}</span> <span class="arrow">-></span> <span class="addition-text">{new_display}</span></td>'
+# -----------------------------------------------
 
 def visualize_unified_spreadsheet_html(diff, show_line_numbers, output_file="diff_output_unified_spreadsheet.html"):
     """Generates an HTML visualization of the diffing result in a unified spreadsheet-like format."""
-    from differ import Removal, Addition, Unchanged
-    import csv
-    from io import StringIO
-    import os
+    # Removed: from differ import Removal, Addition, Unchanged (already imported at top)
+    # Removed: import csv, io, os (already imported at top)
 
     processed_indices = set()
     display_elements = []
@@ -944,19 +945,15 @@ def visualize_unified_spreadsheet_html(diff, show_line_numbers, output_file="dif
     if header_modified:
         # Use the fields from the new header (Addition at index 1)
         header_row_fields = element_fields.get(1, [])
-        print("DEBUG: Header modified, using new header fields:", header_row_fields)
     elif element_fields: # Header not modified, use original logic
         first_row_fields = element_fields.get(0)
         # Try to use first row if it looks like a header, otherwise generate
         if first_row_fields and any(h.lower() in ['id', 'name', 'date', 'col'] for h in first_row_fields if isinstance(h, str)):
              header_row_fields = first_row_fields
-             print("DEBUG: Header not modified, using detected header fields:", header_row_fields)
-        # else: generate below if needed
     
     # If no specific header fields determined, generate generic ones
     if not header_row_fields:
         header_row_fields = [f'Col_{i+1}' for i in range(max_field_count)]
-        print("DEBUG: No specific header found, generating generic headers:", header_row_fields)
     
     # Ensure max_field_count reflects the chosen header, or the max seen
     max_field_count = max(max_field_count, len(header_row_fields))
@@ -1215,25 +1212,20 @@ def visualize_unified_spreadsheet_html(diff, show_line_numbers, output_file="dif
             html_content += f'<td class="line-num line-num-left center-align {orig_class}">{orig_num_display}</td>\n'
             html_content += f'<td class="line-num line-num-right center-align {mod_class}">{mod_num_display}</td>\n'
         
-        # Field content
+        # Field content - Using helper functions
         if element_type == 'modified':
             for field in element['merged_fields']:
                 if field['changed']:
-                    old_display = f'<span class="empty-cell">(empty)</span>' if field["old"] == '' else field["old"]
-                    new_display = f'<span class="empty-cell">(empty)</span>' if field["new"] == '' else field["new"]
-                    html_content += f'<td><span class="removal-text">{old_display}</span> <span class="arrow">-></span> <span class="addition-text">{new_display}</span></td>\n'
+                    html_content += _generate_modified_td(field["old"], field["new"]) + '\n'
                 else:
-                    value = field.get("value", "")
-                    display = f'<span class="empty-cell">(empty)</span>' if value == '' else value
-                    html_content += f'<td>{display}</td>\n'
+                    html_content += _generate_td(field.get("value", "")) + '\n'
             # Add empty cells if needed
             for _ in range(max_field_count - len(element['merged_fields'])):
                 html_content += '<td></td>\n'
         else:
             fields_to_display = element.get('fields', [])
             for field in fields_to_display:
-                display = f'<span class="empty-cell">(empty)</span>' if field == '' else field
-                html_content += f'<td>{display}</td>\n'
+                html_content += _generate_td(field) + '\n'
             # Add empty cells if needed
             for _ in range(max_field_count - len(fields_to_display)):
                 html_content += '<td></td>\n'

@@ -1,10 +1,9 @@
 """Computes diffs of lines."""
 
 from dataclasses import dataclass
-from typing import Optional, List, Tuple
+from typing import Optional, List
 import csv
 from io import StringIO
-from unittest import result
 
 @dataclass(frozen=True)
 class Addition:
@@ -13,6 +12,8 @@ class Addition:
     _diff_indices: Optional[List[int]] = None
     _matched_idx: Optional[int] = None  # Index of the matching removal if this is a modified row
     _is_moved: bool = False  # True if this is a row that exists in both files but moved position
+    _original_index: Optional[int] = None  # Original index in the first file (for moved rows)
+    _new_index: Optional[int] = None  # New index in the second file (for moved rows)
 
 @dataclass(frozen=True)
 class Removal:
@@ -31,13 +32,6 @@ class Unchanged:
     _is_moved: bool = False  # True if this is a row that exists in both files but moved position
     _original_index: Optional[int] = None  # Original index in the first file (for moved rows)
     _new_index: Optional[int] = None  # New index in the second file (for moved rows)
-
-@dataclass(frozen=True)
-class Modification:
-    """Represents a modification of a single line."""
-    old_content: str
-    new_content: str
-    diff_indices: List[int]
 
 def _compute_longest_common_subsequence(text1, text2):
     """Computes the longest common subsequence of the two given strings.
@@ -112,7 +106,7 @@ def diff_traditional(text1, text2):
             results.append(Removal(text1[i - 1]))
             i -= 1
 
-    return mark_segment_changes(list(reversed(results)))
+    return list(reversed(results))
 
 def parse_csv_rows(lines):
     """Parse CSV lines into rows of fields."""
@@ -171,64 +165,6 @@ def calculate_row_similarity(row1, row2):
         
     match_percentage = matching_fields / max_len
     return match_percentage * 0.7 # Scale down general percentage match
-
-def find_best_row_matches(rows1, rows2, similarity_threshold=0.9):
-    """Find **high confidence** matches between rows based on field similarity.
-       Relies on post-processing in diff_csv to catch near-matches.
-    """
-    matches = []
-    used_indices2 = set()
-    
-    # Only one phase: find high confidence matches (>= 0.9 similarity or ID match)
-    for idx1, row1 in enumerate(rows1):
-        # Skip completely empty rows
-        if not row1 or all(cell.strip() == '' for cell in row1):
-            continue
-            
-        best_match_idx = None
-        best_match_score = similarity_threshold # Use the high threshold
-        is_id_match = False
-        
-        # Find best match for this row
-        for idx2, row2 in enumerate(rows2):
-            if idx2 in used_indices2:
-                continue  # This row is already matched
-            
-            # Skip completely empty rows    
-            if not row2 or all(cell.strip() == '' for cell in row2):
-                continue
-                
-            score = calculate_row_similarity(row1, row2)
-            
-            # Prioritize ID matches even if score is slightly lower than another match
-            current_is_id_match = (len(row1) > 0 and len(row2) > 0 and row1[0] == row2[0])
-            
-            # Check if this is a better match than the current best
-            better_match = False
-            if current_is_id_match and not is_id_match:
-                # An ID match beats a non-ID match
-                better_match = True
-            elif current_is_id_match and is_id_match and score > best_match_score:
-                # A better scoring ID match beats another ID match
-                better_match = True
-            elif not current_is_id_match and not is_id_match and score > best_match_score:
-                 # A better scoring non-ID match beats another non-ID match (if above threshold)
-                 better_match = True
-                 
-            if better_match:
-                best_match_score = score
-                best_match_idx = idx2
-                is_id_match = current_is_id_match # Update if this is an ID match
-        
-        # Only add the match if it meets the high threshold OR it was an ID match
-        if best_match_idx is not None and (best_match_score >= similarity_threshold or is_id_match):
-            # Store the score used for matching (could be high due to ID match)
-            matches.append((idx1, best_match_idx, best_match_score)) 
-            used_indices2.add(best_match_idx)
-            
-    # Sort primarily by score (descending), secondarily by original index (ascending)
-    matches.sort(key=lambda m: (-m[2], m[0]))
-    return matches
 
 def identify_row_field_differences(row1, row2):
     """Identify which fields differ between two rows."""
@@ -353,56 +289,3 @@ def diff_csv(text1, text2):
         idx += 1
 
     return final_results
-
-def mark_segment_changes(diff_result):
-    """Marks which segments differ in matched line pairs.
-    
-    For each consecutive pair of Removal and Addition, identifies which 
-    comma-separated segments differ and marks them with _diff_indices.
-    """
-    processed_diff = []
-    i = 0
-    
-    while i < len(diff_result):
-        # If we're not at the end and have a removal followed by an addition
-        if (i < len(diff_result) - 1 and 
-            isinstance(diff_result[i], Removal) and 
-            isinstance(diff_result[i+1], Addition)):
-            
-            removal = diff_result[i]
-            addition = diff_result[i+1]
-            
-            # If they don't already have diff_indices, try to determine them
-            if not hasattr(removal, '_diff_indices') or removal._diff_indices is None:
-                # Split content by comma and compare segments
-                removal_segments = removal.content.split(",")
-                addition_segments = addition.content.split(",")
-                
-                # If they have the same number of segments, compare each one
-                if len(removal_segments) == len(addition_segments):
-                    diff_indices = []
-                    for idx, (removal_seg, addition_seg) in enumerate(
-                        zip(removal_segments, addition_segments)):
-                        if removal_seg.strip() != addition_seg.strip():
-                            diff_indices.append(idx)
-                    
-                    # If we found differences, create new tagged Removal and Addition
-                    if diff_indices:
-                        # Print for debugging
-                        print(f"Found differences at indices {diff_indices}:")
-                        print(f"  REMOVAL: {removal.content}")
-                        print(f"  ADDITION: {addition.content}")
-                        
-                        # Create new objects with the diff indices
-                        processed_diff.append(Removal(removal.content, diff_indices))
-                        processed_diff.append(Addition(addition.content, diff_indices))
-                        
-                        # Skip both original elements
-                        i += 2
-                        continue
-            
-        # If no special handling was applied, just add the current element
-        processed_diff.append(diff_result[i])
-        i += 1
-    
-    return processed_diff

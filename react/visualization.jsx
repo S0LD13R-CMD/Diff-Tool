@@ -38,7 +38,7 @@ class DiffVisualization extends React.Component {
     </div>
   }
 
-  renderDiff (height) {
+  renderDiff () {
     if (this.state.showUnified) {
       return <div>
                <div className="diff-wrapper">
