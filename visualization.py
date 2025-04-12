@@ -430,14 +430,18 @@ def visualize_unified_html(diff, show_line_numbers, output_file="diff_output.htm
             font-family: monospace; 
             background-color: #0d1117; 
             color: #c9d1d9; 
-            margin: 0;
-            padding: 20px;
+            margin: 0; /* Remove default body margin */
+            padding: 0; /* Remove default body padding */
+        }
+        .main-container {
+            padding: 20px; /* Add padding to a container div instead */
         }
         table { 
             border-collapse: collapse; 
             width: 100%; 
             background-color: #0d1117;
             border-color: #30363d;
+            margin-top: 0; /* Remove potential top margin */
         }
         th, td { 
             border: 1px solid #30363d; 
@@ -555,30 +559,45 @@ def visualize_unified_html(diff, show_line_numbers, output_file="diff_output.htm
         .toggle-container {
             position: sticky;
             top: 0;
-            padding: 10px 0;
+            padding: 10px 20px; /* Add horizontal padding */
             background-color: #0d1117;
             z-index: 100;
-            margin-bottom: 15px;
+            /* margin-bottom: 15px; Removed, table margin handles spacing */
             border-bottom: 1px solid #30363d;
+            width: 100%; /* Ensure full width */
+            box-sizing: border-box; /* Include padding in width calculation */
         }
 
         /* First row sticky styling */
         tr:first-child {
             position: sticky;
-            top: 60px; /* Position below the toggle button */
-            background-color: #0d1117;
+            top: 55px; /* Adjust position below toggle button height */
+            background-color: #000000; /* Black background */
             z-index: 50;
         }
         
-        /* Keep the background colors consistent in the sticky first row */
+        /* Make sticky header cells black */
         tr:first-child td {
-            background-color: #0d1117 !important;
+            background-color: #000000 !important; 
+            color: #e0e0e0; /* Slightly lighter text for contrast */
         }
         
-        /* Ensure the status column background remains consistent in the sticky first row */
+        /* Keep status column styling consistent in sticky header */
         tr:first-child td.status-col {
-            background-color: #161b22 !important;
+            background-color: #000000 !important;
+            color: inherit; /* Inherit color from parent td */
         }
+        
+        /* Keep index column styling consistent */
+         tr:first-child td.line-num {
+             background-color: #000000 !important;
+             color: #8b949e; /* Keep original grey for indices */
+         }
+         
+         /* Adjust color specifically for line number text in colored states */
+         tr:first-child td.addition-text, tr:first-child td.removal-text, tr:first-child td.modified-text {
+             color: #8b949e !important; /* Override status colors for indices */
+         }
 
         .toggle-button {
             background-color: #238636;
@@ -627,8 +646,7 @@ def visualize_unified_html(diff, show_line_numbers, output_file="diff_output.htm
     <div class="toggle-container">
         <button id="toggle-button" class="toggle-button" onclick="toggleEmptyCells()">Hide (empty) Labels</button>
     </div>
-    <div class="title">CSV Diff Results (Unified View)</div>
-    <div class="diff-container">
+    <div class="main-container"> 
         <table>
             <thead>
                 <tr>
@@ -677,7 +695,7 @@ def visualize_unified_html(diff, show_line_numbers, output_file="diff_output.htm
             for idx, (r_part, a_part) in enumerate(zip(removal_parts, addition_parts)):
                 if idx in diff_indices:
                     # This field changed - show both old and new values with appropriate coloring
-                    cells.append(f'<span class="removal">{r_part}</span> <span class="arrow">→</span> <span class="addition">{a_part}</span>')
+                    cells.append(f'<span class="removal">{r_part}</span> <span class="arrow">-></span> <span class="addition">{a_part}</span>')
                 else:
                     # Unchanged field
                     cells.append(a_part)
@@ -746,7 +764,7 @@ def visualize_unified_html(diff, show_line_numbers, output_file="diff_output.htm
     html_content.append("""
             </tbody>
         </table>
-    </div>
+    </div> 
 </body>
 </html>""")
     
@@ -766,117 +784,137 @@ def visualize_unified_spreadsheet_html(diff, show_line_numbers, output_file="dif
     processed_indices = set()
     display_elements = []
     element_fields = {}
-    original_pos = 1
-    modified_pos = 1
     temp_pos_data = {} # Dictionary to store temporary position data
 
-    # First pass: Parse fields and calculate positions
+    # --- Pass 1: Calculate Correct Line Numbers & Parse Fields ---
+    original_pos_counter = 1
+    modified_pos_counter = 1
     for i, element in enumerate(diff):
         current_original_pos = None
         current_modified_pos = None
 
-        if isinstance(element, Removal) or isinstance(element, Unchanged):
-            current_original_pos = original_pos
-            original_pos += 1
-        if isinstance(element, Addition) or isinstance(element, Unchanged):
-            current_modified_pos = modified_pos
-            modified_pos += 1
-
-        # Parse fields
-        try:
-            with StringIO(element.content) as f:
-                reader = csv.reader(f)
-                fields = next(reader)
-                element_fields[i] = fields
-        except (StopIteration, csv.Error):
-            element_fields[i] = element.content.split(',') 
+        # Determine line numbers based on element type
+        if isinstance(element, Removal):
+            current_original_pos = original_pos_counter
+            original_pos_counter += 1
+        elif isinstance(element, Addition):
+            current_modified_pos = modified_pos_counter
+            modified_pos_counter += 1
+        elif isinstance(element, Unchanged):
+            current_original_pos = original_pos_counter
+            current_modified_pos = modified_pos_counter
+            original_pos_counter += 1
+            modified_pos_counter += 1
 
         # Store position info in the dictionary
         temp_pos_data[i] = {
             'orig': current_original_pos,
             'mod': current_modified_pos
         }
+        
+        # Parse fields (remains the same)
+        try:
+            with StringIO(element.content) as f:
+                reader = csv.reader(f)
+                fields = next(reader)
+                element_fields[i] = fields
+        except (StopIteration, csv.Error):
+            element_fields[i] = element.content.split(',')
 
     # Determine max field count
     max_field_count = 0
     for fields in element_fields.values():
         max_field_count = max(max_field_count, len(fields))
 
-    # Second pass: Build display elements, pairing modifications
+    # --- Pass 2: Build Display Elements, Pairing Modifications ---
     for i, element in enumerate(diff):
         if i in processed_indices:
             continue
 
-        # Retrieve position data from the dictionary
-        line_num_orig = temp_pos_data[i]['orig']
-        line_num_mod = temp_pos_data[i]['mod']
+        # Retrieve correctly calculated position data
+        line_num_orig = temp_pos_data[i].get('orig') # Use .get for safety
+        line_num_mod = temp_pos_data[i].get('mod')  # Use .get for safety
 
+        # --- Modification Handling (using _matched_idx) ---
+        # Check if it's a Removal AND has a valid _matched_idx
         if isinstance(element, Removal) and hasattr(element, '_matched_idx') and element._matched_idx is not None:
-            # This is the removal part of a modification
-            addition_idx = element._matched_idx
-            if addition_idx < len(diff) and isinstance(diff[addition_idx], Addition):
-                addition = diff[addition_idx]
-                processed_indices.add(addition_idx)
-
-                # Retrieve addition's modified position
-                line_num_mod = temp_pos_data[addition_idx]['mod'] 
-
-                removal_fields = element_fields.get(i, [])
-                addition_fields = element_fields.get(addition_idx, [])
+            # _matched_idx stores the index of the corresponding Addition in the *current* diff list
+            linked_addition_index = element._matched_idx 
+            
+            # --- Corrected Logic --- 
+            # Check if the linked index is valid and points to a corresponding Addition
+            if (linked_addition_index < len(diff) and 
+                isinstance(diff[linked_addition_index], Addition) and
+                hasattr(diff[linked_addition_index], '_matched_idx') and
+                diff[linked_addition_index]._matched_idx == i):
                 
+                # Valid modification pair found!
+                addition = diff[linked_addition_index]
+                processed_indices.add(linked_addition_index) # Mark addition index as processed
+                
+                # Retrieve addition's modified position from temp data using its original index
+                # NOTE: temp_pos_data uses the original index 'i' for the removal,
+                # and 'linked_addition_index' for the addition.
+                line_num_mod = temp_pos_data.get(linked_addition_index, {}).get('mod')
+                
+                # --- Create 'modified' display element --- 
+                removal_fields = element_fields.get(i, [])
+                addition_fields = element_fields.get(linked_addition_index, [])
                 merged_fields = []
                 max_local_len = max(len(removal_fields), len(addition_fields))
+                # Get diff indices from Removal (they should be the same for the linked Addition)
+                diff_indices = getattr(element, '_diff_indices', []) 
+
                 for field_idx in range(max_local_len):
                     old_val = removal_fields[field_idx] if field_idx < len(removal_fields) else ''
                     new_val = addition_fields[field_idx] if field_idx < len(addition_fields) else ''
-                    changed = old_val != new_val
+                    # Use diff_indices to mark change accurately
+                    changed = field_idx in diff_indices 
                     merged_fields.append({
-                        'old': old_val,
-                        'new': new_val,
-                        'changed': changed,
-                        'value': new_val # Use new value for display if unchanged
+                        'old': old_val, 'new': new_val, 'changed': changed,
+                        'value': new_val 
                     })
-
+                
                 display_elements.append({
                     'type': 'modified',
-                    'line_num_orig': line_num_orig,
-                    'line_num_mod': line_num_mod,
+                    'line_num_orig': line_num_orig, 
+                    'line_num_mod': line_num_mod,  
                     'merged_fields': merged_fields,
+                    'original_index': i # Keep original index for sorting
+                })
+                processed_indices.add(i) # Mark removal index as processed
+                continue # Skip to next element in outer loop
+            # --- End Corrected Logic ---
+            else:
+                 # If the link is invalid for some reason, fall through to treat as standalone Removal
+                 print(f"Warning: Invalid link found for Removal at index {i}. Linked index: {linked_addition_index}")
+                 pass
+
+        # --- Handling Standalone or Unmatched Elements ---
+        # Additions are only added if they haven't been processed as part of a modification
+        if isinstance(element, Addition):
+            if i not in processed_indices:
+                display_elements.append({
+                    'type': 'addition',
+                    'line_num_orig': None, 
+                    'line_num_mod': line_num_mod,
+                    'fields': element_fields.get(i, []),
                     'original_index': i 
                 })
-            else:
-                # Fallback: Matched index is invalid, treat as simple removal
+                processed_indices.add(i)
+        # Removals are only added if they haven't been processed as part of a modification
+        elif isinstance(element, Removal):
+            if i not in processed_indices:
                 display_elements.append({
                     'type': 'removal',
                     'line_num_orig': line_num_orig,
-                    'line_num_mod': None,
+                    'line_num_mod': None, 
                     'fields': element_fields.get(i, []),
                     'original_index': i
                 })
-        elif isinstance(element, Addition) and hasattr(element, '_matched_idx') and element._matched_idx is not None:
-            # This is the addition part of a modification, but we process it with the removal
-            # Should have been skipped by processed_indices, but handle defensively
-            continue 
-        elif isinstance(element, Addition):
-            # Standalone Addition
-            display_elements.append({
-                'type': 'addition',
-                'line_num_orig': None,
-                'line_num_mod': line_num_mod,
-                'fields': element_fields.get(i, []),
-                'original_index': i 
-            })
-        elif isinstance(element, Removal):
-             # Standalone Removal
-            display_elements.append({
-                'type': 'removal',
-                'line_num_orig': line_num_orig,
-                'line_num_mod': None,
-                'fields': element_fields.get(i, []),
-                'original_index': i
-            })
+                processed_indices.add(i)
         elif isinstance(element, Unchanged):
-            # Unchanged row
+            # Unchanged are always added
             display_elements.append({
                 'type': 'unchanged',
                 'line_num_orig': line_num_orig,
@@ -884,12 +922,12 @@ def visualize_unified_spreadsheet_html(diff, show_line_numbers, output_file="dif
                 'fields': element_fields.get(i, []),
                 'original_index': i
             })
-            
-        processed_indices.add(i)
+            processed_indices.add(i)
 
-    # Sort display elements correctly by original line number
-    # Ensure modifications, additions, removals are placed based on their original position
-    display_elements.sort(key=lambda x: x.get('line_num_orig') if x.get('line_num_orig') is not None else float('inf'))
+    # --- Sort Display Elements by Original Position --- 
+    # Use original_index as the primary key for stable sorting based on input order
+    # Fallback to line_num_orig only if needed (though original_index should be sufficient)
+    display_elements.sort(key=lambda x: x.get('original_index')) 
 
     # Extract source file name from arguments if available
     source_file = "Original File"
@@ -911,14 +949,18 @@ def visualize_unified_spreadsheet_html(diff, show_line_numbers, output_file="dif
                 font-family: monospace; 
                 background-color: #0d1117; 
                 color: #c9d1d9; 
-                margin: 0;
-                padding: 20px;
+                margin: 0; /* Remove default body margin */
+                padding: 0; /* Remove default body padding */
+            }
+            .main-container {
+                padding: 20px; /* Add padding to a container div instead */
             }
             table { 
                 border-collapse: collapse; 
                 width: 100%; 
                 background-color: #0d1117;
                 border-color: #30363d;
+                margin-top: 0; /* Remove potential top margin */
             }
             th, td { 
                 border: 1px solid #30363d; 
@@ -1036,30 +1078,45 @@ def visualize_unified_spreadsheet_html(diff, show_line_numbers, output_file="dif
             .toggle-container {
                 position: sticky;
                 top: 0;
-                padding: 10px 0;
+                padding: 10px 20px; /* Add horizontal padding */
                 background-color: #0d1117;
                 z-index: 100;
-                margin-bottom: 15px;
+                /* margin-bottom: 15px; Removed, table margin handles spacing */
                 border-bottom: 1px solid #30363d;
+                width: 100%; /* Ensure full width */
+                box-sizing: border-box; /* Include padding in width calculation */
             }
 
             /* First row sticky styling */
             tr:first-child {
                 position: sticky;
-                top: 60px; /* Position below the toggle button */
-                background-color: #0d1117;
+                top: 55px; /* Adjust position below toggle button height */
+                background-color: #000000; /* Black background */
                 z-index: 50;
             }
             
-            /* Keep the background colors consistent in the sticky first row */
+            /* Make sticky header cells black */
             tr:first-child td {
-                background-color: #0d1117 !important;
+                background-color: #000000 !important; 
+                color: #e0e0e0; /* Slightly lighter text for contrast */
             }
             
-            /* Ensure the status column background remains consistent in the sticky first row */
+            /* Keep status column styling consistent in sticky header */
             tr:first-child td.status-col {
-                background-color: #161b22 !important;
+                background-color: #000000 !important;
+                color: inherit; /* Inherit color from parent td */
             }
+            
+            /* Keep index column styling consistent */
+             tr:first-child td.line-num {
+                 background-color: #000000 !important;
+                 color: #8b949e; /* Keep original grey for indices */
+             }
+             
+             /* Adjust color specifically for line number text in colored states */
+             tr:first-child td.addition-text, tr:first-child td.removal-text, tr:first-child td.modified-text {
+                 color: #8b949e !important; /* Override status colors for indices */
+             }
 
             .toggle-button {
                 background-color: #238636;
@@ -1108,8 +1165,15 @@ def visualize_unified_spreadsheet_html(diff, show_line_numbers, output_file="dif
         <div class="toggle-container">
             <button id="toggle-button" class="toggle-button" onclick="toggleEmptyCells()">Hide (empty) Labels</button>
         </div>
-        <table>
-            <tbody>
+        <div class="main-container"> 
+            <table>
+                <thead>
+                    <tr>
+                        <th>Line</th>
+                        <th>Content</th>
+                    </tr>
+                </thead>
+                <tbody>
     """
 
     # --- HTML Table Body Generation ---
@@ -1140,7 +1204,7 @@ def visualize_unified_spreadsheet_html(diff, show_line_numbers, output_file="dif
                 if field['changed']:
                     old_display = f'<span class="empty-cell">(empty)</span>' if field["old"] == '' else field["old"]
                     new_display = f'<span class="empty-cell">(empty)</span>' if field["new"] == '' else field["new"]
-                    html_content += f'<td><span class="removal-text">{old_display}</span> <span class="arrow">→</span> <span class="addition-text">{new_display}</span></td>\n'
+                    html_content += f'<td><span class="removal-text">{old_display}</span> <span class="arrow">-></span> <span class="addition-text">{new_display}</span></td>\n'
                 else:
                     value = field.get("value", "")
                     display = f'<span class="empty-cell">(empty)</span>' if value == '' else value
@@ -1161,8 +1225,9 @@ def visualize_unified_spreadsheet_html(diff, show_line_numbers, output_file="dif
     
     # --- HTML Closing --- 
     html_content += """
-            </tbody>
-        </table>
+                </tbody>
+            </table>
+        </div> 
     </body>
     </html>
     """

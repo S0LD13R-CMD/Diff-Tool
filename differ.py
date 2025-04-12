@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from typing import Optional, List, Tuple
 import csv
 from io import StringIO
+from unittest import result
 
 @dataclass(frozen=True)
 class Addition:
@@ -171,19 +172,22 @@ def calculate_row_similarity(row1, row2):
     match_percentage = matching_fields / max_len
     return match_percentage * 0.7 # Scale down general percentage match
 
-def find_best_row_matches(rows1, rows2, similarity_threshold=0.3):
-    """Find best matches between rows based on field similarity."""
+def find_best_row_matches(rows1, rows2, similarity_threshold=0.9):
+    """Find **high confidence** matches between rows based on field similarity.
+       Relies on post-processing in diff_csv to catch near-matches.
+    """
     matches = []
     used_indices2 = set()
     
-    # First phase: find high confidence matches
+    # Only one phase: find high confidence matches (>= 0.9 similarity or ID match)
     for idx1, row1 in enumerate(rows1):
         # Skip completely empty rows
         if not row1 or all(cell.strip() == '' for cell in row1):
             continue
             
         best_match_idx = None
-        best_match_score = similarity_threshold  # Only consider matches above threshold
+        best_match_score = similarity_threshold # Use the high threshold
+        is_id_match = False
         
         # Find best match for this row
         for idx2, row2 in enumerate(rows2):
@@ -195,44 +199,35 @@ def find_best_row_matches(rows1, rows2, similarity_threshold=0.3):
                 continue
                 
             score = calculate_row_similarity(row1, row2)
-            if score > best_match_score:
+            
+            # Prioritize ID matches even if score is slightly lower than another match
+            current_is_id_match = (len(row1) > 0 and len(row2) > 0 and row1[0] == row2[0])
+            
+            # Check if this is a better match than the current best
+            better_match = False
+            if current_is_id_match and not is_id_match:
+                # An ID match beats a non-ID match
+                better_match = True
+            elif current_is_id_match and is_id_match and score > best_match_score:
+                # A better scoring ID match beats another ID match
+                better_match = True
+            elif not current_is_id_match and not is_id_match and score > best_match_score:
+                 # A better scoring non-ID match beats another non-ID match (if above threshold)
+                 better_match = True
+                 
+            if better_match:
                 best_match_score = score
                 best_match_idx = idx2
+                is_id_match = current_is_id_match # Update if this is an ID match
         
-        if best_match_idx is not None:
-            matches.append((idx1, best_match_idx, best_match_score))
+        # Only add the match if it meets the high threshold OR it was an ID match
+        if best_match_idx is not None and (best_match_score >= similarity_threshold or is_id_match):
+            # Store the score used for matching (could be high due to ID match)
+            matches.append((idx1, best_match_idx, best_match_score)) 
             used_indices2.add(best_match_idx)
-    
-    # Second phase: examine remaining unmatched rows and look for potential exact matches
-    # that may have been missed due to position differences
-    unmatched_indices1 = set(range(len(rows1))) - set(m[0] for m in matches)
-    unmatched_indices2 = set(range(len(rows2))) - used_indices2
-    
-    # Look for potential exact or near-exact matches between remaining unmatched rows
-    for idx1 in sorted(unmatched_indices1):
-        row1 = rows1[idx1]
-        
-        # Skip completely empty rows
-        if not row1 or all(cell.strip() == '' for cell in row1):
-            continue
             
-        for idx2 in sorted(unmatched_indices2):
-            row2 = rows2[idx2]
-            
-            # Skip completely empty rows    
-            if not row2 or all(cell.strip() == '' for cell in row2):
-                continue
-                
-            # Check for near matches with a lower threshold
-            score = calculate_row_similarity(row1, row2)
-            if score > 0.2:  # Much lower threshold for the second pass
-                matches.append((idx1, idx2, score))
-                used_indices2.add(idx2)
-                unmatched_indices2.remove(idx2)
-                break
-            
-    # Sort by score descending, to prioritize most confident matches
-    matches.sort(key=lambda m: m[2], reverse=True)
+    # Sort primarily by score (descending), secondarily by original index (ascending)
+    matches.sort(key=lambda m: (-m[2], m[0]))
     return matches
 
 def identify_row_field_differences(row1, row2):
@@ -245,142 +240,123 @@ def identify_row_field_differences(row1, row2):
     return diff_indices
 
 def diff_csv(text1, text2):
-    """CSV-aware diff that compares rows field-by-field."""
+    """CSV-aware diff using LCS for row alignment and post-processing for modifications."""
     rows1 = parse_csv_rows(text1)
     rows2 = parse_csv_rows(text2)
     
-    # Find best matches between rows
-    matches = find_best_row_matches(rows1, rows2)
+    # Remove the previous debug print
+    # print("DEBUG: Matches found by find_best_row_matches:", matches)
     
-    # Create lookup dictionaries for matched rows
-    matched_idx1_to_idx2 = {m[0]: m[1] for m in matches}
-    matched_idx2_to_idx1 = {m[1]: m[0] for m in matches}
+    # --- Step 1: Compute LCS on rows ---
+    # We treat entire rows (as lists of strings) as the items for LCS
+    lcs_table = _compute_longest_common_subsequence(rows1, rows2)
     
-    # Track processed indices from file2
-    processed_idx2 = set()
-    
-    # Build the initial diff result preserving original order
+    # --- Step 2: Build initial Add/Remove/Unchanged list from LCS table ---
     initial_results = []
+    i = len(rows1)
+    j = len(rows2)
     
-    # First add headers if they're identical
-    if rows1 and rows2 and rows1[0] == rows2[0]:
-        initial_results.append(Unchanged(text1[0]))
-        processed_idx2.add(0)  # Mark header as processed
-    
-    # Process all rows from file1 in order
-    for idx1, row1 in enumerate(rows1):
-        # Skip header if we already added it
-        if idx1 == 0 and rows2 and rows1[0] == rows2[0]:
-            continue
-            
-        if idx1 in matched_idx1_to_idx2:
-            # This row has a match in file2
-            idx2 = matched_idx1_to_idx2[idx1]
-            row2 = rows2[idx2]
-            processed_idx2.add(idx2)
-            
-            if row1 == row2:
-                # Identical rows - check if they're in same position
-                if idx1 == idx2:
-                    # Same position - truly unchanged
-                    initial_results.append(Unchanged(text1[idx1]))
-                else:
-                    # Same content but different position
-                    # Only mark as moved if they're more than 3 lines apart
-                    if abs(idx1 - idx2) > 3:
-                        # Far enough to be considered moved
-                        results.append(Unchanged(text1[idx1], 
-                                              _is_moved=True,
-                                              _original_index=idx1 + 1, 
-                                              _new_index=idx2 + 1))
-                    else:
-                        # Too close to be considered moved - treat as unchanged
-                        initial_results.append(Unchanged(text1[idx1]))
-            else:
-                # Initially mark as separate removal and addition
-                # Post-processing will merge these if they qualify as a modification
-                initial_results.append(Removal(text1[idx1])) 
-                initial_results.append(Addition(text2[idx2])) 
+    while i > 0 or j > 0:
+        # Check if we should skip the header comparison if they are identical
+        # This avoids marking the header as added/removed if only content changed
+        is_header_row1 = (i == 1 and rows1[0] == rows2[0]) if (rows1 and rows2) else False
+        is_header_row2 = (j == 1 and rows1[0] == rows2[0]) if (rows1 and rows2) else False
+
+        if is_header_row1 and is_header_row2:
+             # Both point to identical headers, skip comparison for this iteration
+             i -= 1
+             j -= 1
+             continue
+             
+        if i > 0 and j > 0 and rows1[i - 1] == rows2[j - 1]:
+            # Rows are identical - Unchanged
+            # Use original text content for the Unchanged object
+            initial_results.append(Unchanged(text1[i - 1]))
+            i -= 1
+            j -= 1
+        elif j > 0 and (i == 0 or lcs_table[i][j - 1] >= lcs_table[i - 1][j]):
+            # Row from text2 is not in LCS - Addition
+            initial_results.append(Addition(text2[j - 1]))
+            j -= 1
+        elif i > 0 and (j == 0 or lcs_table[i][j - 1] < lcs_table[i - 1][j]):
+            # Row from text1 is not in LCS - Removal
+            initial_results.append(Removal(text1[i - 1]))
+            i -= 1
         else:
-            # Row was removed in file2
-            initial_results.append(Removal(text1[idx1]))
+             # Should not happen, but break loop if it does
+             print("Error: Unexpected state in LCS traceback")
+             break
+
+    # Add header as unchanged if it was identical and skipped
+    if rows1 and rows2 and rows1[0] == rows2[0]:
+         initial_results.append(Unchanged(text1[0]))
+
+    # Results are built in reverse order, so reverse them
+    initial_results.reverse()
     
-    # Now add any rows from file2 that weren't matched to file1
-    for idx2, row2 in enumerate(rows2):
-        if idx2 not in processed_idx2:
-            # This is a new row in file2
-            initial_results.append(Addition(text2[idx2]))
-    
-    # Final post-processing pass: look for consecutive removal/addition pairs that are highly similar
+    # --- Step 3: Post-processing to identify Modifications ---
     final_results = []
-    i = 0
-    while i < len(initial_results):
-        current_element = initial_results[i]
-        next_element = initial_results[i+1] if (i + 1 < len(initial_results)) else None
-        
-        # Check for Removal followed by Addition
-        if (isinstance(current_element, Removal) and 
-            isinstance(next_element, Addition)):
+    idx = 0
+    processed_indices = set() # Keep track of indices used in modification pairs
+
+    while idx < len(initial_results):
+        if idx in processed_indices:
+            idx += 1
+            continue
+
+        current_element = initial_results[idx]
+
+        # Look for adjacent Removal -> Addition sequence
+        if (idx + 1 < len(initial_results) and
+                isinstance(current_element, Removal) and
+                isinstance(initial_results[idx + 1], Addition)):
             
             removal = current_element
-            addition = next_element
-            is_modification = False
-            diff_indices = []
+            addition = initial_results[idx + 1]
             
+            # Parse rows to check for similarity
             try:
-                removal_row = next(csv.reader([removal.content]))
-                addition_row = next(csv.reader([addition.content]))
-                
-                # Calculate similarity based on field differences
-                total_fields = max(len(removal_row), len(addition_row))
-                if total_fields > 0: # Avoid division by zero for empty rows
-                    matching_fields = 0
-                    current_diff_indices = []
-                    max_len = max(len(removal_row), len(addition_row))
-                    min_len = min(len(removal_row), len(addition_row))
+                # Use original text lines associated with removal/addition
+                removal_row = parse_csv_rows([removal.content])[0]
+                addition_row = parse_csv_rows([addition.content])[0]
 
-                    for idx in range(min_len):
-                        if removal_row[idx] == addition_row[idx]:
-                            matching_fields += 1
-                        else:
-                            current_diff_indices.append(idx)
+                # Check similarity (ID match or high similarity)
+                similarity_score = calculate_row_similarity(removal_row, addition_row)
+                is_id_match = (len(removal_row) > 0 and len(addition_row) > 0 and removal_row[0] == addition_row[0])
+                
+                # -- REMOVED DEBUG PRINTS --
+                
+                # Consider it a modification if ID matches OR similarity is high (e.g., >= 0.8)
+                if is_id_match or similarity_score >= 0.8:
+                    diff_indices = identify_row_field_differences(removal_row, addition_row)
                     
-                    # Fields only in the longer row are also differences
-                    num_different_fields = len(current_diff_indices) + (max_len - min_len)
+                    # Link them as a modification pair
+                    # Indices point to the *other* element within the final_results list
+                    removal_final_idx = len(final_results)
+                    addition_final_idx = removal_final_idx + 1
                     
-                    match_percentage = matching_fields / max_len
+                    linked_removal = Removal(removal.content, diff_indices, _matched_idx=addition_final_idx)
+                    linked_addition = Addition(addition.content, diff_indices, _matched_idx=removal_final_idx)
                     
-                    # Modification Criteria: >=90% match OR <= 3 differing fields
-                    if match_percentage >= 0.9 or num_different_fields <= 3:
-                        is_modification = True
-                        diff_indices = current_diff_indices
-                        # Add indices for fields present only in longer row
-                        for idx in range(min_len, max_len):
-                            diff_indices.append(idx)
-                            
-            except (StopIteration, csv.Error):
-                # Handle CSV parsing errors
-                pass
+                    final_results.append(linked_removal)
+                    final_results.append(linked_addition)
+                    
+                    # Mark both original indices as processed
+                    processed_indices.add(idx)
+                    processed_indices.add(idx + 1)
+                    idx += 2 # Move past the processed pair
+                    continue # Continue to next iteration
 
-            # If it qualifies as a modification, add linked pair
-            if is_modification:
-                removal_pos = len(final_results)
-                addition_pos = removal_pos + 1
-                
-                # Add linked Removal and Addition
-                linked_removal = Removal(removal.content, diff_indices, _matched_idx=addition_pos)
-                linked_addition = Addition(addition.content, diff_indices, _matched_idx=removal_pos)
-                
-                final_results.append(linked_removal)
-                final_results.append(linked_addition)
-                
-                i += 2 # Skip both original elements
-                continue # Move to the next potential pair
+            except Exception as e:
+                # If parsing or comparison fails, treat as separate R/A
+                print(f"Warning: Error processing potential modification at index {idx}: {e}")
+                pass # Fall through to default handling
 
-        # If not a modification pair, add the current element
+        # Default: Add the element as is if not part of a modification
         final_results.append(current_element)
-        i += 1
-            
+        processed_indices.add(idx)
+        idx += 1
+
     return final_results
 
 def mark_segment_changes(diff_result):
