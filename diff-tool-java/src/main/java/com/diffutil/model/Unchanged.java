@@ -1,18 +1,25 @@
-package main.java.com.diffutil.model;
+package com.diffutil.model;
 
 import java.util.List;
 import java.util.Optional;
 
 /**
  * Represents an unchanged line in a diff.
- * Uses Java 16+ Record.
+ * Compatible with Java 11.
  */
-public record Unchanged(
-    String content,
-    Optional<Boolean> isMoved,
-    Optional<Integer> originalIndex,
-    Optional<Integer> newIndex
-) implements DiffElement {
+public final class Unchanged implements DiffElement {
+    private final String content;
+    private final Optional<Boolean> isMoved;
+    private final Optional<Integer> originalIndex;
+    private final Optional<Integer> newIndex;
+
+    // Private base constructor
+    private Unchanged(String content, Optional<Boolean> isMoved, Optional<Integer> originalIndex, Optional<Integer> newIndex) {
+        this.content = content;
+        this.isMoved = isMoved != null ? isMoved : Optional.empty();
+        this.originalIndex = originalIndex != null ? originalIndex : Optional.empty();
+        this.newIndex = newIndex != null ? newIndex : Optional.empty();
+    }
 
     // Constructor for simple unchanged line
     public Unchanged(String content) {
@@ -69,4 +76,6 @@ public record Unchanged(
     public Optional<Integer> getNewIndex() {
         return newIndex;
     }
+
+     // Optional: Add equals(), hashCode(), and toString()
 }

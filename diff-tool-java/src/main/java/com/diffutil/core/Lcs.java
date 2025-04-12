@@ -1,4 +1,4 @@
-package main.java.com.diffutil.core;
+package com.diffutil.core;
 
 import java.util.List;
 import java.util.Objects;

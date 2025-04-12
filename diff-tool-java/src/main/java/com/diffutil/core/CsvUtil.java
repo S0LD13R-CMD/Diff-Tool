@@ -1,11 +1,12 @@
-package main.java.com.diffutil.core;
+package com.diffutil.core;
 
 import com.opencsv.CSVParserBuilder;
 import com.opencsv.CSVReader;
 import com.opencsv.CSVReaderBuilder;
 import com.opencsv.exceptions.CsvException;
 
-import main.java.com.diffutil.model.DiffElement;
+// Removed: import main.java.com.diffutil.model.DiffElement;
+// Imports for model classes are not needed here if not directly referenced
 
 import java.io.IOException;
 import java.io.StringReader;
@@ -50,7 +51,7 @@ public class CsvUtil {
                     // Handle cases where parsing might yield null (e.g., only delimiters?)
                     allRows.add(new ArrayList<>());
                 }
-            } catch (IOException | CsvValidationException e) {
+            } catch (IOException e) {
                 // If a line fails to parse as CSV, treat it as a single-column row
                 // This matches Python's fallback behavior if csv.reader fails
                 System.err.println("Warning: Failed to parse line as CSV: [" + line + "]. Treating as single field. Error: " + e.getMessage());
@@ -62,14 +63,5 @@ public class CsvUtil {
             }
         }
         return allRows;
-    }
-    
-    // Dummy CsvValidationException class if not using a version of OpenCSV that includes it 
-    // or to avoid adding a specific dependency if not strictly needed.
-    // Remove this if your OpenCSV version provides it or handle differently.
-    private static class CsvValidationException extends Exception {
-        public CsvValidationException(String message) {
-            super(message);
-        }
     }
 }

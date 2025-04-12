@@ -1,10 +1,10 @@
-package main.java.com.diffutil.viz;
+package com.diffutil.viz;
 
-import main.java.com.diffutil.core.CsvUtil;
-import main.java.com.diffutil.model.Addition;
-import main.java.com.diffutil.model.DiffElement;
-import main.java.com.diffutil.model.Removal;
-import main.java.com.diffutil.model.Unchanged;
+import com.diffutil.core.CsvUtil;
+import com.diffutil.model.Addition;
+import com.diffutil.model.DiffElement;
+import com.diffutil.model.Removal;
+import com.diffutil.model.Unchanged;
 
 import java.io.IOException;
 import java.io.PrintWriter;
@@ -14,7 +14,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -187,6 +186,7 @@ public class HtmlVisualizer {
         // --- Calculate Counts ---
         long addedRows = displayElements.stream().filter(el -> "addition".equals(el.get("type"))).count();
         long removedRows = displayElements.stream().filter(el -> "removal".equals(el.get("type"))).count();
+        @SuppressWarnings("unchecked")
         long modifiedCells = displayElements.stream()
                 .filter(el -> "modified".equals(el.get("type")))
                 .flatMap(el -> ((List<Map<String, Object>>) el.get("merged_fields")).stream())
@@ -345,6 +345,7 @@ public class HtmlVisualizer {
 
             // Field content
             if ("modified".equals(elementType)) {
+                @SuppressWarnings("unchecked")
                 List<Map<String, Object>> mergedFields = (List<Map<String, Object>>) element.get("merged_fields");
                 for (Map<String, Object> field : mergedFields) {
                     html.append("                        "); // Indentation
@@ -360,6 +361,7 @@ public class HtmlVisualizer {
                     html.append("                        <td></td>\n");
                 }
             } else {
+                @SuppressWarnings("unchecked")
                 List<String> fields = (List<String>) element.get("fields");
                 for (String field : fields) {
                     html.append("                        ").append(generateTdHtml(field)).append("\n");

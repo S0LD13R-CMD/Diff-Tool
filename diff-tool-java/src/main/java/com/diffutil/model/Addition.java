@@ -1,20 +1,29 @@
-package main.java.com.diffutil.model;
+package com.diffutil.model;
 
 import java.util.List;
 import java.util.Optional;
 
 /**
  * Represents an addition in a diff.
- * Uses Java 16+ Record for conciseness, similar to Python dataclass.
+ * Compatible with Java 11 (no record keyword).
  */
-public record Addition(
-    String content,
-    Optional<List<Integer>> diffIndices,
-    Optional<Integer> matchedIndex,
-    Optional<Boolean> isMoved,
-    Optional<Integer> originalIndex, // For potential moved additions
-    Optional<Integer> newIndex // For potential moved additions
-) implements DiffElement {
+public final class Addition implements DiffElement {
+    private final String content;
+    private final Optional<List<Integer>> diffIndices;
+    private final Optional<Integer> matchedIndex;
+    private final Optional<Boolean> isMoved;
+    private final Optional<Integer> originalIndex;
+    private final Optional<Integer> newIndex;
+
+    // Private constructor to enforce use of factory methods or specific constructors
+    private Addition(String content, Optional<List<Integer>> diffIndices, Optional<Integer> matchedIndex, Optional<Boolean> isMoved, Optional<Integer> originalIndex, Optional<Integer> newIndex) {
+        this.content = content;
+        this.diffIndices = diffIndices != null ? diffIndices : Optional.empty();
+        this.matchedIndex = matchedIndex != null ? matchedIndex : Optional.empty();
+        this.isMoved = isMoved != null ? isMoved : Optional.empty();
+        this.originalIndex = originalIndex != null ? originalIndex : Optional.empty();
+        this.newIndex = newIndex != null ? newIndex : Optional.empty();
+    }
 
     // Constructor for simple addition
     public Addition(String content) {
@@ -76,4 +85,7 @@ public record Addition(
     public Optional<Integer> getNewIndex() {
         return newIndex;
     }
+
+    // Optional: Add equals(), hashCode(), and toString() if needed for collections etc.
+    // For this specific use case, they might not be strictly necessary.
 }

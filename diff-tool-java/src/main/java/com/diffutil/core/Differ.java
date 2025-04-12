@@ -1,9 +1,9 @@
-package main.java.com.diffutil.core;
+package com.diffutil.core;
 
-import main.java.com.diffutil.model.Addition;
-import main.java.com.diffutil.model.DiffElement;
-import main.java.com.diffutil.model.Removal;
-import main.java.com.diffutil.model.Unchanged;
+import com.diffutil.model.Addition;
+import com.diffutil.model.DiffElement;
+import com.diffutil.model.Removal;
+import com.diffutil.model.Unchanged;
 
 import java.util.ArrayList;
 import java.util.Collections;

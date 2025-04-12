@@ -1,14 +1,8 @@
-package main.java.com.diffutil.viz;
+package com.diffutil.viz;
 
-import main.java.com.diffutil.model.Addition;
-import main.java.com.diffutil.model.DiffElement;
-import main.java.com.diffutil.model.Removal;
-import main.java.com.diffutil.model.Unchanged;
-
+import com.diffutil.model.DiffElement;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
-import java.util.stream.Collectors;
 
 public class ConsoleVisualizer {
 
@@ -30,7 +24,6 @@ public class ConsoleVisualizer {
         // Ensure minimum 1 digit for formatting
         numDigits = Math.max(1, numDigits);
         String prefixFormat = String.format("[%%%dd] ", numDigits);
-        String emptyPrefix = String.format("%%%ds ", numDigits).replace("s", " ");
         String spacing = "  "; // Two spaces after prefix
 
         int lineNum1 = 1;

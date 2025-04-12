@@ -1,0 +1,15 @@
+com/diffutil/cli/CliArgs.class
+com/diffutil/core/CsvUtil.class
+com/diffutil/core/Differ.class
+com/diffutil/model/Removal.class
+com/diffutil/cli/Main.class
+com/diffutil/viz/HtmlVisualizer.class
+com/diffutil/viz/ColorUtil.class
+com/diffutil/model/DiffElement.class
+com/diffutil/core/CsvUtil$CsvValidationException.class
+com/diffutil/viz/ConsoleVisualizer.class
+com/diffutil/viz/ConsoleVisualizer$1.class
+com/diffutil/model/Unchanged.class
+com/diffutil/core/Lcs.class
+com/diffutil/model/Addition.class
+com/diffutil/model/DiffElement$ElementType.class

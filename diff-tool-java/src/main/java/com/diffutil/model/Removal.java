@@ -1,22 +1,35 @@
-package main.java.com.diffutil.model;
+package com.diffutil.model;
 
 import java.util.List;
 import java.util.Optional;
 
 /**
  * Represents a removal in a diff.
- * Uses Java 16+ Record.
+ * Compatible with Java 11.
  */
-public record Removal(
-    String content,
-    Optional<List<Integer>> diffIndices,
-    Optional<Integer> matchedIndex,
-    Optional<Boolean> isMoved,
-    Optional<Boolean> isCombinedMod, // Renamed from Python's _is_combined_mod
-    Optional<Integer> combinedNewIndex, // Renamed from Python
-    Optional<Integer> originalIndex, // For potential moved removals
-    Optional<Integer> newIndex // For potential moved removals
-) implements DiffElement {
+public final class Removal implements DiffElement {
+    private final String content;
+    private final Optional<List<Integer>> diffIndices;
+    private final Optional<Integer> matchedIndex;
+    private final Optional<Boolean> isMoved;
+    private final Optional<Boolean> isCombinedMod;
+    private final Optional<Integer> combinedNewIndex;
+    private final Optional<Integer> originalIndex;
+    private final Optional<Integer> newIndex;
+
+    // Private base constructor
+    private Removal(String content, Optional<List<Integer>> diffIndices, Optional<Integer> matchedIndex,
+                    Optional<Boolean> isMoved, Optional<Boolean> isCombinedMod, Optional<Integer> combinedNewIndex,
+                    Optional<Integer> originalIndex, Optional<Integer> newIndex) {
+        this.content = content;
+        this.diffIndices = diffIndices != null ? diffIndices : Optional.empty();
+        this.matchedIndex = matchedIndex != null ? matchedIndex : Optional.empty();
+        this.isMoved = isMoved != null ? isMoved : Optional.empty();
+        this.isCombinedMod = isCombinedMod != null ? isCombinedMod : Optional.empty();
+        this.combinedNewIndex = combinedNewIndex != null ? combinedNewIndex : Optional.empty();
+        this.originalIndex = originalIndex != null ? originalIndex : Optional.empty();
+        this.newIndex = newIndex != null ? newIndex : Optional.empty();
+    }
 
     // Constructor for simple removal
     public Removal(String content) {
@@ -77,4 +90,6 @@ public record Removal(
     public Optional<Integer> getNewIndex() {
         return newIndex;
     }
+
+     // Optional: Add equals(), hashCode(), and toString()
 }

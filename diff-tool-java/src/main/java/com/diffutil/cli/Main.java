@@ -1,9 +1,9 @@
-package main.java.com.diffutil.cli;
+package com.diffutil.cli;
 
-import main.java.com.diffutil.core.Differ;
-import main.java.com.diffutil.model.DiffElement;
-import main.java.com.diffutil.viz.ConsoleVisualizer;
-import main.java.com.diffutil.viz.HtmlVisualizer;
+import com.diffutil.core.Differ;
+import com.diffutil.model.DiffElement;
+import com.diffutil.viz.ConsoleVisualizer;
+import com.diffutil.viz.HtmlVisualizer;
 import picocli.CommandLine;
 
 import java.io.IOException;

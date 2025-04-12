@@ -1,4 +1,4 @@
-package main.java.com.diffutil.viz;
+package com.diffutil.viz;
 
 /**
  * Utility class for ANSI terminal colors.
