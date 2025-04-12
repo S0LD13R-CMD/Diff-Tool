@@ -8,70 +8,59 @@
                 font-family: monospace; 
                 background-color: #0d1117; 
                 color: #c9d1d9; 
-                margin: 0; /* Remove default body margin */
-                padding: 0; /* Remove default body padding */
+                margin: 0;
+                padding: 0;
             }
             .main-container {
-                padding: 20px; /* Add padding to a container div instead */
+                padding: 20px; 
             }
             table { 
                 border-collapse: collapse; 
                 width: 100%; 
                 background-color: #0d1117;
                 border-color: #30363d;
-                margin-top: 0; /* Remove potential top margin */
+                margin-top: 0; 
             }
             th, td { 
                 border: 1px solid #30363d; 
                 padding: 8px; 
                 text-align: left; 
             }
-            th { 
+            th {
                 background-color: #161b22; 
                 color: #c9d1d9;
                 position: sticky;
-                top: 0;
+                /* Adjust sticky top based on toggle container height */
+                top: 55px; /* Height of toggle container */ 
                 z-index: 10;
                 border-color: #30363d;
             }
-            /* Apply background color to all cells except the first three cells (status and index columns) */
             tr.addition td:not(:nth-child(-n+3)) { background-color: rgba(46, 160, 67, 0.15); }
             tr.removal td:not(:nth-child(-n+3)) { background-color: rgba(248, 81, 73, 0.15); }
             
-            /* Status column and line number columns should keep their background for ALL row types */
             tr td.status-col, tr td.line-num {
                 background-color: #161b22 !important;
                 border-color: #30363d;
             }
-            
-            /* For modified rows, don't apply background highlighting */
             tr.modified td {
                 background-color: transparent;
             }
-            
-            /* Status text colors */
             .addition-text { color: #3fb950; }
             .removal-text { color: #f85149; }
             .modified-text { color: #d29922; }
             .unchanged { color: #c9d1d9; }
-            
-            /* Center-aligned columns */
             .center-align {
                 text-align: center;
             }
-            
-            /* Status column styling */
             .status-col {
                 background-color: #161b22;
                 min-width: 80px;
                 text-align: center;
                 font-weight: bold;
                 user-select: none;
-                border-right: none; /* No right border to merge with index */
+                border-right: none; 
                 border-color: #30363d;
             }
-            
-            /* Index column styling */
             .line-num { 
                 color: #8b949e; 
                 min-width: 30px; 
@@ -82,135 +71,127 @@
                 padding-right: 4px;
                 border-color: #30363d;
             }
-            /* Remove right border from first index column */
             .line-num-left {
                 border-right: none;
                 text-align: right;
                 padding-right: 6px;
-                border-left: none; /* Remove border with status column */
+                border-left: none; 
                 border-color: #30363d;
             }
-            /* Remove left border from second index column */
             .line-num-right {
                 border-left: none;
                 text-align: left;
                 padding-left: 6px;
                 border-color: #30363d;
             }
-            
-            /* Index header with centered text in table header */
             .index-header {
                 text-align: center !important;
                 padding: 8px 0;
-                border-left: none; /* Remove border with status header */
+                border-left: none; 
                 border-color: #30363d;
             }
-            
             .arrow { color: #8b949e; padding: 0 5px; }
-            
             .row-id { font-weight: bold; }
-            
             .file-header { 
                 font-weight: bold; 
                 background-color: #161b22;
                 color: #c9d1d9;
                 border-color: #30363d;
             }
-
-            /* Empty cell styling */
             .empty-cell {
                 color: #6e7681;
                 font-style: italic;
             }
-            
-            /* Force all borders to be #30363d */
-            * {
-                border-color: #30363d !important;
-            }
+            * { border-color: #30363d !important; }
 
-            /* Toggle button styling */
+            /* Toggle container - now using flex */
             .toggle-container {
                 position: sticky;
                 top: 0;
-                padding: 10px 20px; /* Add horizontal padding */
-                background-color: #0d1117;
+                padding: 10px 20px; 
+                background-color: #0d1117; 
                 z-index: 100;
-                /* margin-bottom: 15px; Removed, table margin handles spacing */
                 border-bottom: 1px solid #30363d;
-                width: 100%; /* Ensure full width */
-                box-sizing: border-box; /* Include padding in width calculation */
+                width: 100%; 
+                box-sizing: border-box; 
+                display: flex; /* Use flexbox */
+                align-items: center; /* Vertically align items */
+                justify-content: space-between; /* Space out button and info */
+                min-height: 55px; /* Ensure minimum height for sticky header positioning */
             }
 
-            /* First row sticky styling */
-            tr:first-child {
-                position: sticky;
-                top: 55px; /* Adjust position below toggle button height */
-                background-color: #000000; /* Black background */
-                z-index: 50;
+            /* Info Section Styling */
+            .info-section {
+                color: #8b949e; /* Grey text */
+                font-size: 14px;
             }
-            
-            /* Make sticky header cells black */
-            tr:first-child td {
-                background-color: #000000 !important; 
-                color: #e0e0e0; /* Slightly lighter text for contrast */
+            .info-section span {
+                margin-left: 15px; /* Space between info items */
             }
-            
-            /* Keep status column styling consistent in sticky header */
-            tr:first-child td.status-col {
-                background-color: #000000 !important;
-                color: inherit; /* Inherit color from parent td */
-            }
-            
-            /* Keep index column styling consistent */
-             tr:first-child td.line-num {
-                 background-color: #000000 !important;
-                 color: #8b949e; /* Keep original grey for indices */
-             }
-             
-             /* Adjust color specifically for line number text in colored states */
-             tr:first-child td.addition-text, tr:first-child td.removal-text, tr:first-child td.modified-text {
-                 color: #8b949e !important; /* Override status colors for indices */
-             }
+            .info-added { color: #3fb950; font-weight: bold; }
+            .info-removed { color: #f85149; font-weight: bold; }
+            .info-modified { color: #d29922; font-weight: bold; }
 
+            /* Updated Toggle button styling */
             .toggle-button {
-                background-color: #238636;
-                color: white;
-                border: none;
+                background-color: #30363d; /* Grey background */
+                color: #c9d1d9; /* Light grey text */
+                border: 1px solid #8b949e; /* Slightly lighter border */
                 padding: 8px 16px;
                 border-radius: 6px;
                 cursor: pointer;
                 font-size: 14px;
                 font-family: monospace;
             }
-
             .toggle-button:hover {
-                background-color: #2ea043;
+                background-color: #484f58; /* Slightly lighter grey on hover */
+                border-color: #c9d1d9;
             }
+
+            /* == Sticky Table Header Row Styles == */
+            /* Target the first row within the tbody */
+            tbody tr:first-child th {
+                position: sticky;
+                /* Position below the .toggle-container (height: 55px) */
+                top: 55px; 
+                background-color: #000000 !important; /* Black background */
+                color: #e0e0e0 !important; /* Lighter text for contrast */
+                z-index: 50; /* Below toggle-container but above table body */
+            }
+            /* Keep status column consistent in sticky header */
+            tbody tr:first-child th.status-col {
+                 background-color: #000000 !important;
+                 /* Inherit color or set explicitly if needed */
+            }
+            /* Keep index columns consistent in sticky header */
+             tbody tr:first-child th.line-num {
+                 background-color: #000000 !important;
+                 color: #8b949e !important; /* Keep original grey for indices */
+             }
+             /* Ensure index text color override in sticky header */
+             tbody tr:first-child th.line-num.addition-text,
+             tbody tr:first-child th.line-num.removal-text,
+             tbody tr:first-child th.line-num.modified-text {
+                 color: #8b949e !important; /* Override status colors for indices */
+             }
+            /* == End Sticky Table Header Row Styles == */
+
         </style>
         <script>
             function toggleEmptyCells() {
                 const emptyCells = document.querySelectorAll('.empty-cell');
                 const button = document.getElementById('toggle-button');
-                
-                // Toggle visibility
                 for (const cell of emptyCells) {
                     if (cell.style.display === 'none') {
                         cell.style.display = 'inline';
                         button.textContent = 'Hide (empty) Labels';
-                        
-                        // No need to modify parent cell styling since we want consistent backgrounds
                     } else {
                         cell.style.display = 'none';
                         button.textContent = 'Show (empty) Labels';
-                        
-                        // No need to modify parent cell styling since we want consistent backgrounds
                     }
                 }
             }
-            
-            // Initialize on page load
             window.addEventListener('DOMContentLoaded', (event) => {
-                // Start with empty cells visible by default
                 document.getElementById('toggle-button').textContent = 'Hide (empty) Labels';
             });
         </script>
@@ -218,66 +199,73 @@
     <body>
         <div class="toggle-container">
             <button id="toggle-button" class="toggle-button" onclick="toggleEmptyCells()">Hide (empty) Labels</button>
+            <div class="info-section">
+                 <span>Added: <span class="info-added">0</span></span>
+                 <span>Removed: <span class="info-removed">1</span></span>
+                 <span>Modified Cells: <span class="info-modified">22</span></span>
+            </div>
         </div>
         <div class="main-container"> 
             <table>
+                <!-- Ensure the header row is generated within tbody -->
                 <tbody>
-    <tr class="unchanged">
-<td class="status-col unchanged-text">Unchanged</td>
-<td class="line-num line-num-left center-align ">1</td>
-<td class="line-num line-num-right center-align ">1</td>
-<td>Col_1</td>
-<td>Col_2</td>
-<td>Col_3</td>
-<td>Col_4</td>
-<td>Col_5</td>
-<td>Col_6</td>
-<td>Col_7</td>
-<td>Col_8</td>
-<td>Col_9</td>
-<td>Col_10</td>
-<td>Col_11</td>
-<td>Col_12</td>
-<td>Col_13</td>
-<td>Col_14</td>
-<td>Col_15</td>
-<td>Col_16</td>
-<td>Col_17</td>
-<td>Col_18</td>
-<td>Col_19</td>
-<td>Col_20</td>
-<td>Col_21</td>
-<td>Col_22</td>
-<td>Col_23</td>
-<td>Col_24</td>
-<td>Col_25</td>
-<td>Col_26</td>
-<td>Col_27</td>
-<td>Col_28</td>
-<td>Col_29</td>
-<td>Col_30</td>
-<td>Col_31</td>
-<td>Col_32</td>
-<td>Col_33</td>
-<td>Col_34</td>
-<td>Col_35</td>
-<td>Col_36</td>
-<td>Col_37</td>
-<td>Col_38</td>
-<td>Col_39</td>
-<td>Col_40</td>
-<td>Col_41</td>
-<td>Col_42</td>
-<td>Col_43</td>
-<td>Col_44</td>
-<td>Col_45</td>
-<td>Col_46</td>
-<td>Col_47</td>
-<td>Col_48</td>
-<td>Col_49</td>
-<td>Col_50</td>
-</tr>
-<tr class="modified">
+                    <tr>
+                        <!-- Header Cells (using th for semantics) -->
+                        <th class="status-col">Status</th>
+                        <th class="line-num line-num-left index-header" colspan="2">Line</th> 
+                        <!-- Generate header cells for data columns --> 
+                        <th>Col_1</th>
+<th>Col_2</th>
+<th>Col_3</th>
+<th>Col_4</th>
+<th>Col_5</th>
+<th>Col_6</th>
+<th>Col_7</th>
+<th>Col_8</th>
+<th>Col_9</th>
+<th>Col_10</th>
+<th>Col_11</th>
+<th>Col_12</th>
+<th>Col_13</th>
+<th>Col_14</th>
+<th>Col_15</th>
+<th>Col_16</th>
+<th>Col_17</th>
+<th>Col_18</th>
+<th>Col_19</th>
+<th>Col_20</th>
+<th>Col_21</th>
+<th>Col_22</th>
+<th>Col_23</th>
+<th>Col_24</th>
+<th>Col_25</th>
+<th>Col_26</th>
+<th>Col_27</th>
+<th>Col_28</th>
+<th>Col_29</th>
+<th>Col_30</th>
+<th>Col_31</th>
+<th>Col_32</th>
+<th>Col_33</th>
+<th>Col_34</th>
+<th>Col_35</th>
+<th>Col_36</th>
+<th>Col_37</th>
+<th>Col_38</th>
+<th>Col_39</th>
+<th>Col_40</th>
+<th>Col_41</th>
+<th>Col_42</th>
+<th>Col_43</th>
+<th>Col_44</th>
+<th>Col_45</th>
+<th>Col_46</th>
+<th>Col_47</th>
+<th>Col_48</th>
+<th>Col_49</th>
+<th>Col_50</th>
+                    </tr>
+    <tr class="modified">
 <td class="status-col modified-text">Modified</td>
 <td class="line-num line-num-left center-align removal-text">2</td>
 <td class="line-num line-num-right center-align addition-text">2</td>

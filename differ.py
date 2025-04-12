@@ -244,9 +244,6 @@ def diff_csv(text1, text2):
     rows1 = parse_csv_rows(text1)
     rows2 = parse_csv_rows(text2)
     
-    # Remove the previous debug print
-    # print("DEBUG: Matches found by find_best_row_matches:", matches)
-    
     # --- Step 1: Compute LCS on rows ---
     # We treat entire rows (as lists of strings) as the items for LCS
     lcs_table = _compute_longest_common_subsequence(rows1, rows2)
@@ -323,8 +320,6 @@ def diff_csv(text1, text2):
                 # Check similarity (ID match or high similarity)
                 similarity_score = calculate_row_similarity(removal_row, addition_row)
                 is_id_match = (len(removal_row) > 0 and len(addition_row) > 0 and removal_row[0] == addition_row[0])
-                
-                # -- REMOVED DEBUG PRINTS --
                 
                 # Consider it a modification if ID matches OR similarity is high (e.g., >= 0.8)
                 if is_id_match or similarity_score >= 0.8:

@@ -404,20 +404,42 @@ def visualize_unified_html(diff, show_line_numbers, output_file="diff_output.htm
             processed_indices.add(i)
     
     # Get header row (field names)
-    header_row = []
-    for i, element in enumerate(diff):
-        if i in element_fields and element_fields[i] and element_fields[i][0] == 'ID':
-            header_row = element_fields[i]
-            break
+    header_row_fields = []
+    max_field_count = max(len(fields) for fields in element_fields.values()) if element_fields else 0
+
+    # Check if the header itself was modified (Removal at index 0, Addition at index 1)
+    header_modified = False
+    if (len(diff) >= 2 and 
+        isinstance(diff[0], Removal) and 
+        isinstance(diff[1], Addition)):
+        # Basic check assumes first R/A pair is header change. Could be more robust.
+        header_modified = True
+
+    if header_modified:
+        # Use the fields from the new header (Addition at index 1)
+        header_row_fields = element_fields.get(1, [])
+        print("DEBUG: Header modified, using new header fields:", header_row_fields)
+    elif element_fields: # Header not modified, use original logic
+        first_row_fields = element_fields.get(0)
+        # Try to use first row if it looks like a header, otherwise generate
+        if first_row_fields and any(h.lower() in ['id', 'name', 'date', 'col'] for h in first_row_fields if isinstance(h, str)):
+             header_row_fields = first_row_fields
+             print("DEBUG: Header not modified, using detected header fields:", header_row_fields)
+        # else: generate below if needed
     
-    # If we couldn't find a header row with 'ID', use the first row we found
-    if not header_row and element_fields:
-        for idx in sorted(element_fields.keys()):
-            if element_fields[idx]:
-                header_row = element_fields[idx]
-                break
+    # If no specific header fields determined, generate generic ones
+    if not header_row_fields:
+        header_row_fields = [f'Col_{i+1}' for i in range(max_field_count)]
+        print("DEBUG: No specific header found, generating generic headers:", header_row_fields)
     
-    # HTML content generation
+    # Ensure max_field_count reflects the chosen header, or the max seen
+    max_field_count = max(max_field_count, len(header_row_fields))
+
+    # Generate HTML for header cells
+    header_cells_html = "\n".join([f'<th>{str(header)}</th>' for header in header_row_fields]) # Ensure header is string
+    # -------------------------------------
+
+    # --- HTML Generation --- 
     html_content = []
     
     # Start with the HTML structure and CSS
@@ -661,102 +683,57 @@ def visualize_unified_html(diff, show_line_numbers, output_file="diff_output.htm
     
     # Process each element for display
     for element in display_elements:
-        line_html = '<tr>'
+        # --- Skip rendering the original header row in the data body ---
+        if element.get('original_index') == 0: 
+            # Check if the first element is the header, assuming header is always at original index 0
+            # This prevents duplicating the header row shown in the sticky thead
+            continue 
+        # --------------------------------------------------------------
+
+        element_type = element['type']
+        row_class = element_type # Use type directly as class (e.g., 'modified', 'addition')
+        html_content.append(f'<tr class="{row_class}">\n')
         
-        # Special handling for modified rows
-        if isinstance(element, dict) and element.get('type') == 'modified':
-            removal = element['removal']
-            addition = element['addition']
-            diff_indices = element['diff_indices']
-            row_id = element['row_id']
+        # Status column
+        status_text = element_type.capitalize()
+        status_class = f"{element_type}-text" # e.g., modified-text
+        html_content.append(f'<td class="status-col {status_class}">{status_text}</td>\n')
+        
+        # Line numbers if enabled
+        if show_line_numbers:
+            orig_num_display = element.get('line_num_orig', '')
+            mod_num_display = element.get('line_num_mod', '')
             
-            # Show line numbers if requested
-            if show_line_numbers:
-                # For modified rows, show both line numbers
-                line_html += f'<td class="line-number">[{line_num1}→{line_num2}] ±</td>'
-                
-                # Update counters
-                line_num1 += 1
-                line_num2 += 1
-            else:
-                line_html += '<td class="line-number">±</td>'
+            orig_class = "removal-text" if element_type in ['removal', 'modified'] else ""
+            mod_class = "addition-text" if element_type in ['addition', 'modified'] else ""
             
-            # Split by comma for CSV
-            removal_parts = removal.content.split(',')
-            addition_parts = addition.content.split(',')
-            
-            # Create a table cell with the content
-            line_html += '<td>'
-            
-            # Create row cells
-            cells = []
-            for idx, (r_part, a_part) in enumerate(zip(removal_parts, addition_parts)):
-                if idx in diff_indices:
-                    # This field changed - show both old and new values with appropriate coloring
-                    cells.append(f'<span class="removal">{r_part}</span> <span class="arrow">-></span> <span class="addition">{a_part}</span>')
+            html_content.append(f'<td class="line-num line-num-left center-align {orig_class}">{orig_num_display}</td>\n')
+            html_content.append(f'<td class="line-num line-num-right center-align {mod_class}">{mod_num_display}</td>\n')
+        
+        # Field content
+        if element_type == 'modified':
+            for field in element['merged_fields']:
+                if field['changed']:
+                    old_display = f'<span class="empty-cell">(empty)</span>' if field["old"] == '' else field["old"]
+                    new_display = f'<span class="empty-cell">(empty)</span>' if field["new"] == '' else field["new"]
+                    html_content.append(f'<td><span class="removal-text">{old_display}</span> <span class="arrow">-></span> <span class="addition-text">{new_display}</span></td>\n')
                 else:
-                    # Unchanged field
-                    cells.append(a_part)
-            
-            line_html += ','.join(cells)
-            line_html += '</td>'
+                    value = field.get("value", "")
+                    display = f'<span class="empty-cell">(empty)</span>' if value == '' else value
+                    html_content.append(f'<td>{display}</td>\n')
+            # Add empty cells if needed
+            for _ in range(max_field_count - len(element['merged_fields'])):
+                html_content.append('<td></td>\n')
         else:
-            # Normal processing for other elements
-            if show_line_numbers:
-                if isinstance(element, dict) and element.get('type') == 'addition':
-                    line_html += f'<td class="line-number">[{line_num2}] +</td>'
-                    line_num2 += 1
-                elif isinstance(element, dict) and element.get('type') == 'removal':
-                    line_html += f'<td class="line-number">[{line_num1}] -</td>'
-                    line_num1 += 1
-                elif isinstance(element, dict) and element.get('type') == 'unchanged':
-                    elem = element.get('element')
-                    if hasattr(elem, '_is_moved') and elem._is_moved:
-                        if hasattr(elem, '_original_index') and hasattr(elem, '_new_index'):
-                            line_html += f'<td class="line-number">[{elem._original_index}]→[{elem._new_index}] ~</td>'
-                        else:
-                            line_html += f'<td class="line-number">[{line_num1}] ~</td>'
-                    else:
-                        line_html += f'<td class="line-number">[{line_num1}]  </td>'
-                    
-                    line_num1 += 1
-                    line_num2 += 1
-            else:
-                if isinstance(element, dict) and element.get('type') == 'addition':
-                    line_html += '<td class="line-number">+</td>'
-                elif isinstance(element, dict) and element.get('type') == 'removal':
-                    line_html += '<td class="line-number">-</td>'
-                elif isinstance(element, dict) and element.get('type') == 'unchanged':
-                    elem = element.get('element')
-                    if hasattr(elem, '_is_moved') and elem._is_moved:
-                        line_html += '<td class="line-number">~</td>'
-                    else:
-                        line_html += '<td class="line-number"> </td>'
-            
-            # Format content
-            line_html += '<td>'
-            if isinstance(element, dict) and element.get('type') == 'addition':
-                elem = element.get('element')
-                if hasattr(elem, '_diff_indices') and elem._diff_indices:
-                    line_html += _html_green(_html_highlight_segments(elem.content, elem._diff_indices))
-                else:
-                    line_html += _html_green(elem.content)
-            elif isinstance(element, dict) and element.get('type') == 'removal':
-                elem = element.get('element')
-                if hasattr(elem, '_diff_indices') and elem._diff_indices:
-                    line_html += _html_red(_html_highlight_segments(elem.content, elem._diff_indices))
-                else:
-                    line_html += _html_red(elem.content)
-            elif isinstance(element, dict) and element.get('type') == 'unchanged':
-                elem = element.get('element')
-                if hasattr(elem, '_is_moved') and elem._is_moved:
-                    line_html += _html_purple(elem.content)
-                else:
-                    line_html += elem.content
-            line_html += '</td>'
+            fields_to_display = element.get('fields', [])
+            for field in fields_to_display:
+                display = f'<span class="empty-cell">(empty)</span>' if field == '' else field
+                html_content.append(f'<td>{display}</td>\n')
+            # Add empty cells if needed
+            for _ in range(max_field_count - len(fields_to_display)):
+                html_content.append('<td></td>\n')
         
-        line_html += '</tr>'
-        html_content.append(line_html)
+        html_content.append('</tr>\n')
     
     # Close the HTML
     html_content.append("""
@@ -927,6 +904,22 @@ def visualize_unified_spreadsheet_html(diff, show_line_numbers, output_file="dif
     # Fallback to line_num_orig only if needed (though original_index should be sufficient)
     display_elements.sort(key=lambda x: x.get('original_index')) 
 
+    # --- Calculate Counts for Info Section ---
+    added_rows = 0
+    removed_rows = 0
+    modified_cells = 0
+    for element in display_elements:
+        if element['type'] == 'addition':
+            added_rows += 1
+        elif element['type'] == 'removal':
+            removed_rows += 1
+        elif element['type'] == 'modified':
+            # Count changed fields within this modified row
+            for field in element.get('merged_fields', []):
+                if field.get('changed', False):
+                    modified_cells += 1
+    # --------------------------------------
+
     # Extract source file name from arguments if available
     source_file = "Original File"
     try:
@@ -936,82 +929,107 @@ def visualize_unified_spreadsheet_html(diff, show_line_numbers, output_file="dif
     except:
         pass
 
-    # --- HTML Generation (largely unchanged, relies on correct display_elements) ---
-    html_content = """
+    # --- Determine Header Row for HTML (Improved for header changes) --- 
+    header_row_fields = []
+    max_field_count = max(len(fields) for fields in element_fields.values()) if element_fields else 0
+
+    # Check if the header itself was modified (Removal at index 0, Addition at index 1)
+    header_modified = False
+    if (len(diff) >= 2 and 
+        isinstance(diff[0], Removal) and 
+        isinstance(diff[1], Addition)):
+        # Basic check assumes first R/A pair is header change. Could be more robust.
+        header_modified = True
+
+    if header_modified:
+        # Use the fields from the new header (Addition at index 1)
+        header_row_fields = element_fields.get(1, [])
+        print("DEBUG: Header modified, using new header fields:", header_row_fields)
+    elif element_fields: # Header not modified, use original logic
+        first_row_fields = element_fields.get(0)
+        # Try to use first row if it looks like a header, otherwise generate
+        if first_row_fields and any(h.lower() in ['id', 'name', 'date', 'col'] for h in first_row_fields if isinstance(h, str)):
+             header_row_fields = first_row_fields
+             print("DEBUG: Header not modified, using detected header fields:", header_row_fields)
+        # else: generate below if needed
+    
+    # If no specific header fields determined, generate generic ones
+    if not header_row_fields:
+        header_row_fields = [f'Col_{i+1}' for i in range(max_field_count)]
+        print("DEBUG: No specific header found, generating generic headers:", header_row_fields)
+    
+    # Ensure max_field_count reflects the chosen header, or the max seen
+    max_field_count = max(max_field_count, len(header_row_fields))
+
+    # Generate HTML for header cells
+    header_cells_html = "\n".join([f'<th>{str(header)}</th>' for header in header_row_fields]) # Ensure header is string
+    # -------------------------------------
+
+    # --- HTML Generation --- 
+    html_content = f"""
     <!DOCTYPE html>
     <html>
     <head>
         <title>CSV Diff Results</title>
         <style>
-            body { 
+            body {{ 
                 font-family: monospace; 
                 background-color: #0d1117; 
                 color: #c9d1d9; 
-                margin: 0; /* Remove default body margin */
-                padding: 0; /* Remove default body padding */
-            }
-            .main-container {
-                padding: 20px; /* Add padding to a container div instead */
-            }
-            table { 
+                margin: 0;
+                padding: 0;
+            }}
+            .main-container {{
+                padding: 20px; 
+            }}
+            table {{ 
                 border-collapse: collapse; 
                 width: 100%; 
                 background-color: #0d1117;
                 border-color: #30363d;
-                margin-top: 0; /* Remove potential top margin */
-            }
-            th, td { 
+                margin-top: 0; 
+            }}
+            th, td {{ 
                 border: 1px solid #30363d; 
                 padding: 8px; 
                 text-align: left; 
-            }
-            th { 
+            }}
+            th {{
                 background-color: #161b22; 
                 color: #c9d1d9;
                 position: sticky;
-                top: 0;
+                /* Adjust sticky top based on toggle container height */
+                top: 55px; /* Height of toggle container */ 
                 z-index: 10;
                 border-color: #30363d;
-            }
-            /* Apply background color to all cells except the first three cells (status and index columns) */
-            tr.addition td:not(:nth-child(-n+3)) { background-color: rgba(46, 160, 67, 0.15); }
-            tr.removal td:not(:nth-child(-n+3)) { background-color: rgba(248, 81, 73, 0.15); }
+            }}
+            tr.addition td:not(:nth-child(-n+3)) {{ background-color: rgba(46, 160, 67, 0.15); }}
+            tr.removal td:not(:nth-child(-n+3)) {{ background-color: rgba(248, 81, 73, 0.15); }}
             
-            /* Status column and line number columns should keep their background for ALL row types */
-            tr td.status-col, tr td.line-num {
+            tr td.status-col, tr td.line-num {{
                 background-color: #161b22 !important;
                 border-color: #30363d;
-            }
-            
-            /* For modified rows, don't apply background highlighting */
-            tr.modified td {
+            }}
+            tr.modified td {{
                 background-color: transparent;
-            }
-            
-            /* Status text colors */
-            .addition-text { color: #3fb950; }
-            .removal-text { color: #f85149; }
-            .modified-text { color: #d29922; }
-            .unchanged { color: #c9d1d9; }
-            
-            /* Center-aligned columns */
-            .center-align {
+            }}
+            .addition-text {{ color: #3fb950; }}
+            .removal-text {{ color: #f85149; }}
+            .modified-text {{ color: #d29922; }}
+            .unchanged {{ color: #c9d1d9; }}
+            .center-align {{
                 text-align: center;
-            }
-            
-            /* Status column styling */
-            .status-col {
+            }}
+            .status-col {{
                 background-color: #161b22;
                 min-width: 80px;
                 text-align: center;
                 font-weight: bold;
                 user-select: none;
-                border-right: none; /* No right border to merge with index */
+                border-right: none; 
                 border-color: #30363d;
-            }
-            
-            /* Index column styling */
-            .line-num { 
+            }}
+            .line-num {{ 
                 color: #8b949e; 
                 min-width: 30px; 
                 max-width: 40px;
@@ -1020,154 +1038,163 @@ def visualize_unified_spreadsheet_html(diff, show_line_numbers, output_file="dif
                 padding-left: 4px;
                 padding-right: 4px;
                 border-color: #30363d;
-            }
-            /* Remove right border from first index column */
-            .line-num-left {
+            }}
+            .line-num-left {{
                 border-right: none;
                 text-align: right;
                 padding-right: 6px;
-                border-left: none; /* Remove border with status column */
+                border-left: none; 
                 border-color: #30363d;
-            }
-            /* Remove left border from second index column */
-            .line-num-right {
+            }}
+            .line-num-right {{
                 border-left: none;
                 text-align: left;
                 padding-left: 6px;
                 border-color: #30363d;
-            }
-            
-            /* Index header with centered text in table header */
-            .index-header {
+            }}
+            .index-header {{
                 text-align: center !important;
                 padding: 8px 0;
-                border-left: none; /* Remove border with status header */
+                border-left: none; 
                 border-color: #30363d;
-            }
-            
-            .arrow { color: #8b949e; padding: 0 5px; }
-            
-            .row-id { font-weight: bold; }
-            
-            .file-header { 
+            }}
+            .arrow {{ color: #8b949e; padding: 0 5px; }}
+            .row-id {{ font-weight: bold; }}
+            .file-header {{ 
                 font-weight: bold; 
                 background-color: #161b22;
                 color: #c9d1d9;
                 border-color: #30363d;
-            }
-
-            /* Empty cell styling */
-            .empty-cell {
+            }}
+            .empty-cell {{
                 color: #6e7681;
                 font-style: italic;
-            }
-            
-            /* Style for truly empty cells - visible when (empty) text is hidden */
-            /* .truly-empty { ... } removed as it was empty */
-            
-            /* Force all borders to be #30363d */
-            * {
-                border-color: #30363d !important;
-            }
+            }}
+            * {{ border-color: #30363d !important; }}
 
-            /* Toggle button styling */
-            .toggle-container {
+            /* Toggle container - now using flex */
+            .toggle-container {{
                 position: sticky;
                 top: 0;
-                padding: 10px 20px; /* Add horizontal padding */
-                background-color: #0d1117;
+                padding: 10px 20px; 
+                background-color: #0d1117; 
                 z-index: 100;
-                /* margin-bottom: 15px; Removed, table margin handles spacing */
                 border-bottom: 1px solid #30363d;
-                width: 100%; /* Ensure full width */
-                box-sizing: border-box; /* Include padding in width calculation */
-            }
+                width: 100%; 
+                box-sizing: border-box; 
+                display: flex; /* Use flexbox */
+                align-items: center; /* Vertically align items */
+                justify-content: space-between; /* Space out button and info */
+                min-height: 55px; /* Ensure minimum height for sticky header positioning */
+            }}
 
-            /* First row sticky styling */
-            tr:first-child {
-                position: sticky;
-                top: 55px; /* Adjust position below toggle button height */
-                background-color: #000000; /* Black background */
-                z-index: 50;
-            }
-            
-            /* Make sticky header cells black */
-            tr:first-child td {
-                background-color: #000000 !important; 
-                color: #e0e0e0; /* Slightly lighter text for contrast */
-            }
-            
-            /* Keep status column styling consistent in sticky header */
-            tr:first-child td.status-col {
-                background-color: #000000 !important;
-                color: inherit; /* Inherit color from parent td */
-            }
-            
-            /* Keep index column styling consistent */
-             tr:first-child td.line-num {
-                 background-color: #000000 !important;
-                 color: #8b949e; /* Keep original grey for indices */
-             }
-             
-             /* Adjust color specifically for line number text in colored states */
-             tr:first-child td.addition-text, tr:first-child td.removal-text, tr:first-child td.modified-text {
-                 color: #8b949e !important; /* Override status colors for indices */
-             }
+            /* Info Section Styling */
+            .info-section {{
+                color: #8b949e; /* Grey text */
+                font-size: 14px;
+            }}
+            .info-section span {{
+                margin-left: 15px; /* Space between info items */
+            }}
+            .info-added {{ color: #3fb950; font-weight: bold; }}
+            .info-removed {{ color: #f85149; font-weight: bold; }}
+            .info-modified {{ color: #d29922; font-weight: bold; }}
 
-            .toggle-button {
-                background-color: #238636;
-                color: white;
-                border: none;
+            /* Updated Toggle button styling */
+            .toggle-button {{
+                background-color: #30363d; /* Grey background */
+                color: #c9d1d9; /* Light grey text */
+                border: 1px solid #8b949e; /* Slightly lighter border */
                 padding: 8px 16px;
                 border-radius: 6px;
                 cursor: pointer;
                 font-size: 14px;
                 font-family: monospace;
-            }
+            }}
+            .toggle-button:hover {{
+                background-color: #484f58; /* Slightly lighter grey on hover */
+                border-color: #c9d1d9;
+            }}
 
-            .toggle-button:hover {
-                background-color: #2ea043;
-            }
+            /* == Sticky Table Header Row Styles == */
+            /* Target the first row within the tbody */
+            tbody tr:first-child th {{
+                position: sticky;
+                /* Position below the .toggle-container (height: 55px) */
+                top: 55px; 
+                background-color: #000000 !important; /* Black background */
+                color: #e0e0e0 !important; /* Lighter text for contrast */
+                z-index: 50; /* Below toggle-container but above table body */
+            }}
+            /* Keep status column consistent in sticky header */
+            tbody tr:first-child th.status-col {{
+                 background-color: #000000 !important;
+                 /* Inherit color or set explicitly if needed */
+            }}
+            /* Keep index columns consistent in sticky header */
+             tbody tr:first-child th.line-num {{
+                 background-color: #000000 !important;
+                 color: #8b949e !important; /* Keep original grey for indices */
+             }}
+             /* Ensure index text color override in sticky header */
+             tbody tr:first-child th.line-num.addition-text,
+             tbody tr:first-child th.line-num.removal-text,
+             tbody tr:first-child th.line-num.modified-text {{
+                 color: #8b949e !important; /* Override status colors for indices */
+             }}
+            /* == End Sticky Table Header Row Styles == */
+
         </style>
         <script>
-            function toggleEmptyCells() {
+            function toggleEmptyCells() {{
                 const emptyCells = document.querySelectorAll('.empty-cell');
                 const button = document.getElementById('toggle-button');
-                
-                // Toggle visibility
-                for (const cell of emptyCells) {
-                    if (cell.style.display === 'none') {
+                for (const cell of emptyCells) {{
+                    if (cell.style.display === 'none') {{
                         cell.style.display = 'inline';
                         button.textContent = 'Hide (empty) Labels';
-                        
-                        // No need to modify parent cell styling since we want consistent backgrounds
-                    } else {
+                    }} else {{
                         cell.style.display = 'none';
                         button.textContent = 'Show (empty) Labels';
-                        
-                        // No need to modify parent cell styling since we want consistent backgrounds
-                    }
-                }
-            }
-            
-            // Initialize on page load
-            window.addEventListener('DOMContentLoaded', (event) => {
-                // Start with empty cells visible by default
+                    }}
+                }}
+            }}
+            window.addEventListener('DOMContentLoaded', (event) => {{
                 document.getElementById('toggle-button').textContent = 'Hide (empty) Labels';
-            });
+            }});
         </script>
     </head>
     <body>
         <div class="toggle-container">
             <button id="toggle-button" class="toggle-button" onclick="toggleEmptyCells()">Hide (empty) Labels</button>
+            <div class="info-section">
+                 <span>Added: <span class="info-added">{added_rows}</span></span>
+                 <span>Removed: <span class="info-removed">{removed_rows}</span></span>
+                 <span>Modified Cells: <span class="info-modified">{modified_cells}</span></span>
+            </div>
         </div>
         <div class="main-container"> 
             <table>
+                <!-- Ensure the header row is generated within tbody -->
                 <tbody>
+                    <tr>
+                        <!-- Header Cells (using th for semantics) -->
+                        <th class="status-col">Status</th>
+                        <th class="line-num line-num-left index-header" colspan="2">Line</th> 
+                        <!-- Generate header cells for data columns --> 
+                        {header_cells_html}
+                    </tr>
     """
 
     # --- HTML Table Body Generation ---
     for element in display_elements:
+        # --- Skip rendering the original header row in the data body ---
+        if element.get('original_index') == 0: 
+            # Check if the first element is the header, assuming header is always at original index 0
+            # This prevents duplicating the header row shown in the sticky thead
+            continue 
+        # --------------------------------------------------------------
+
         element_type = element['type']
         row_class = element_type # Use type directly as class (e.g., 'modified', 'addition')
         html_content += f'<tr class="{row_class}">\n'
