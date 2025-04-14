@@ -13,8 +13,8 @@ public class Main {
     public static void main(String[] args) {
         // --- Configuration ---
         // MODIFY THESE PATHS TO YOUR ACTUAL INPUT FILES
-        String file1Path = "diff-tool-java/finance_data_1.csv"; // Updated path
-        String file2Path = "diff-tool-java/finance_data_2.csv"; // Updated path
+        String file1Path = "diff-tool-java/data.csv"; // Updated path
+        String file2Path = "diff-tool-java/data1.csv"; // Updated path
         String outputHtmlPath = "diff_output.html"; // Output path in project root
         boolean showLineNumbers = true;
         // --- End Configuration ---

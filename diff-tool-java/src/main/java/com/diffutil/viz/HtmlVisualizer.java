@@ -14,74 +14,11 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 
 public class HtmlVisualizer {
-
-    // Simple HTML view (not spreadsheet-like)
-    public static void visualizeUnifiedHtml(List<DiffElement> diff, boolean showLineNumbers, String outputFilePath) {
-        StringBuilder html = new StringBuilder();
-
-        appendSimpleHtmlHeader(html);
-
-        AtomicInteger lineNum1 = new AtomicInteger(1);
-        AtomicInteger lineNum2 = new AtomicInteger(1);
-
-        html.append("            <tbody>\n");
-
-        for (DiffElement element : diff) {
-            html.append("                <tr>\n");
-            String prefix = "";
-            String cssClass = "";
-            String symbol = "";
-
-            if (showLineNumbers) {
-                 if (element instanceof Addition) {
-                    prefix = "[" + lineNum2.getAndIncrement() + "]";
-                    symbol = "+";
-                    cssClass = "addition";
-                 } else if (element instanceof Removal) {
-                    prefix = "[" + lineNum1.getAndIncrement() + "]";
-                    symbol = "-";
-                    cssClass = "removal";
-                 } else if (element instanceof Unchanged) {
-                     if (element.isMoved().orElse(false)) {
-                         prefix = "[" + element.getOriginalIndex().orElse(lineNum1.get()) + "->" + element.getNewIndex().orElse(lineNum2.get()) + "]";
-                         symbol = "~";
-                         cssClass = "moved";
-                     } else {
-                         prefix = "[" + lineNum1.get() + "]";
-                         symbol = " "; // Space for unchanged
-                         cssClass = "unchanged";
-                     }
-                     lineNum1.getAndIncrement();
-                     lineNum2.getAndIncrement();
-                 }
-                html.append("                    <td class=\"line-number ").append(cssClass).append("\">").append(prefix).append(" ").append(symbol).append("</td>\n");
-            } else {
-                 if (element instanceof Addition) symbol = "+";
-                 else if (element instanceof Removal) symbol = "-";
-                 else if (element instanceof Unchanged && element.isMoved().orElse(false)) symbol = "~";
-                 else symbol = " ";
-                 cssClass = element.getType().name().toLowerCase();
-                 html.append("                    <td class=\"line-number ").append(cssClass).append("\">").append(symbol).append("</td>\n");
-            }
-
-            // Format content - highlighting not implemented in simple view
-            String content = element.getContent() != null ? escapeHtml(element.getContent()) : "";
-            html.append("                    <td class=\"").append(cssClass).append("\">").append(content).append("</td>\n");
-
-            html.append("                </tr>\n");
-        }
-
-        html.append("            </tbody>\n        </table>\n    </div> \n</body>\n</html>");
-
-        writeToFile(outputFilePath, html.toString());
-        System.out.println("\nHTML diff output saved to " + outputFilePath + "\n");
-    }
 
     // Spreadsheet-like HTML view
     public static void visualizeUnifiedSpreadsheetHtml(List<DiffElement> diff, boolean showLineNumbers, String outputFilePath) {
@@ -377,22 +314,6 @@ public class HtmlVisualizer {
 
      private static void appendSpreadsheetHtmlFooter(StringBuilder html) {
         html.append("                </tbody>\n            </table>\n        </div>\n    </div>\n</body>\n</html>");
-    }
-
-    // --- Simple HTML Helpers ---
-    private static void appendSimpleHtmlHeader(StringBuilder html) {
-         html.append("<!DOCTYPE html>\n<html>\n<head>\n<title>Diff Results</title>\n<style>\n")
-             .append("body { font-family: monospace; }\n")
-             .append(".diff-results { list-style: none; padding: 0; margin: 0; }\n")
-             .append("li { padding: 2px 5px; white-space: pre; }\n")
-             .append(".line-number { display: inline-block; width: 50px; color: grey; text-align: right; margin-right: 10px; user-select: none; }\n") // Basic line number style
-             .append(".addition { background-color: #e6ffed; }\n")
-             .append(".removal { background-color: #ffeef0; text-decoration: line-through; }\n")
-             .append(".moved { background-color: #f0eaff; }\n") // Simple moved style
-             .append("td.addition { background-color: #e6ffed; }\n")
-             .append("td.removal { background-color: #ffeef0; }\n")
-             .append("td.moved { background-color: #f0eaff; }\n")
-             .append("</style>\n</head>\n<body>\n<div class=\"main-container\">\n<table>\n");
     }
 
     // --- General Helpers ---
